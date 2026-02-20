@@ -1,0 +1,27 @@
+# 사용자별 로컬 설정
+
+이 파일을 `.claude.local.md`로 복사한 후 아래 값들을 자신의 환경에 맞게 수정하세요.
+
+```bash
+cp .claude.local.md.example .claude.local.md
+```
+
+## 프로젝트 경로
+
+코드 분석 워크플로우에서 참조하는 코드베이스 경로입니다.
+
+| 프로젝트 | 경로 |
+|---------|------|
+| 백엔드 | `/Users/{username}/projs/dnklabs-pms-back` |
+| 프론트엔드 | `/Users/{username}/projs/dnklabs-pms-front` |
+
+> `{username}` 부분을 자신의 사용자명으로 변경하세요.
+
+## Atlassian 계정 정보
+
+Jira/Confluence 연동에 사용되는 계정 정보입니다.
+
+| 항목 | 값 |
+|------|-----|
+| 이메일 | your-email@dnklabs.co |
+| Atlassian 사이트 | dnklabs.atlassian.net |
