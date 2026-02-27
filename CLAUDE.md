@@ -1,4 +1,4 @@
-# PMS Workflow Tool
+# Workflow Kit
 
 Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클론하고 해당 경로에서 Claude Code를 실행하면 정의된 워크플로우를 사용할 수 있음.
 
@@ -59,8 +59,8 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
       "command": "npx",
       "args": ["-y", "@anthropic/mcp-atlassian"],
       "env": {
-        "ATLASSIAN_SITE": "dnklabs.atlassian.net",
-        "ATLASSIAN_USER_EMAIL": "your-email@dnklabs.co",
+        "ATLASSIAN_SITE": "your-company.atlassian.net",
+        "ATLASSIAN_USER_EMAIL": "your-email@your-company.com",
         "ATLASSIAN_API_TOKEN": "your-api-token"
       }
     }
@@ -77,38 +77,156 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 ### 3. Claude Code 재시작
 설정 후 Claude Code를 재시작해야 MCP가 적용됩니다.
 
+### 4. Slack Bot 설정 (자동 트리거 사용 시)
+
+봇을 통한 자동 워크플로우(Slack 메시지 감지 → 티켓 생성, 이모지 → 분석)를 사용하려면 `bot/.env` 설정이 필요합니다.
+
+```bash
+cd bot
+cp .env.example .env
+```
+
+**필수 환경변수:**
+
+| 환경변수 | 설명 |
+|---------|------|
+| `SLACK_BOT_TOKEN` | Slack Bot Token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | Slack App-Level Token (`xapp-...`, Socket Mode용) |
+| `ATLASSIAN_SITE` | Atlassian 사이트 URL (예: `your-company.atlassian.net`) |
+| `JIRA_PROJECT_KEY` | Jira 프로젝트 키 (예: `MYPROJECT`) |
+
+> 필수 환경변수가 누락되면 봇이 시작되지 않습니다. `bot/.env.example`에 전체 목록이 있습니다.
+
 ---
 
 ## 사용 가능한 워크플로우
 
-### 워크플로우 1: 요청 분석 → 티켓/문서 생성
+### 워크플로우 1: 티켓 생성 (자동 / 수동)
 
-사용자의 요청을 분석하여 Jira 티켓과 Confluence 분석 문서를 자동 생성합니다.
+Slack 메시지 또는 수동 입력으로 Jira 티켓을 생성하고, 요청자에게 DM 알림을 발송합니다.
 
-**사용 방법:**
+**트리거 방식:**
+- **자동**: Slack Workflow Form → 특정 채널에 메시지 게시 → Bot이 감지 → `claude -p`로 실행
+- **수동**: Claude Code에서 직접 입력
+
+**Slack Workflow Form 형식 (자동 트리거 시 Bot이 파싱하는 원본):**
 ```
-요청 분석해줘
+📋 요청사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+유형 :  기능 추가
+제목 : 멀티 수납취소 기능 개발 요청
+우선순위 : 🟡 보통
+관련 화면 : 수납관리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+상세 설명
 
-요청 유형: 버그 (또는: 기능 추가 / 개선 사항 / 기타)
+[이슈 내용 / 요청 내용]
+시스템 개선건 입니다
+
+[발생 현황 / 요청 배경]
+시스템 개선건 입니다
+
+[AS-IS]
+현재는 한달 한건 씩만 취소가능
+
+[TO-BE]
+체크박스가 생성되어 멀티 수납취소 기능 개발
+
+[기대 효과]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+요청자 : @홍길동 (Gildong Hong)
+담당자 : @이한상(Hansang Lee)
+```
+
+**우선순위 이모지 매핑:**
+- 🔴 긴급
+- 🟠 높음
+- 🟡 보통
+- 🟢 낮음
+
+**필드 참고:**
+- 담당자: 선택 입력 (비어있을 수 있음)
+- 상세 설명의 하위 섹션([AS-IS], [TO-BE] 등): 비어있을 수 있음
+
+**수동 사용 방법:**
+수동으로 실행할 때도 위 Form 형식을 그대로 붙여넣거나, 아래 간략 형식을 사용할 수 있음:
+```
+티켓 생성해줘
+
+유형: 버그 (또는: 기능 추가 / 개선 사항 / 기타)
 제목: 계약 상태 변경 시 오류 발생
-설명: 계약 목록에서 일괄 변경 시 "변경하지 않음" 선택해도 값이 변경됨
 우선순위: 높음 (또는: 긴급 / 보통 / 낮음)
 관련 화면: 계약관리
+상세 설명: 계약 목록에서 일괄 변경 시 "변경하지 않음" 선택해도 값이 변경됨
 요청자: 홍길동
+담당자: 이한상 (선택)
 ```
 
-**출력:**
-1. Jira 티켓 (PDPMS 프로젝트)
-2. Confluence 분석 문서 (PE > 05.AI Analysis)
+**실행 결과:**
+1. Jira 티켓 생성 (`.claude.local.md`에 설정된 프로젝트, 상태: Backlog)
+2. 원본 메시지에 스레드 댓글:
+```
+티켓 생성 완료: {PROJECT_KEY}-XXX
+https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
+```
+3. Slack DM 알림 발송:
+   - 요청자 DM:
+```
+:clipboard: Jira 티켓 생성 완료
+
+• 티켓: {PROJECT_KEY}-XXX
+• 제목: [기능] XXX
+• 우선순위: 보통
+• 담당자: OOO (없으면 '미지정')
+• 상태: Backlog
+
+https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
+```
+   - 담당자 DM (담당자가 있고, **요청자와 다른 사람인 경우만**):
+```
+:clipboard: Jira 티켓 배정 알림
+
+• 티켓: {PROJECT_KEY}-XXX
+• 제목: [기능] XXX
+• 요청자: OOO
+• 우선순위: 보통
+• 상태: Backlog
+
+https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
+```
+
+> **중복 DM 방지**: 요청자와 담당자가 동일 인물이면 요청자 DM만 발송하고 담당자 DM은 생략할 것.
+
+### 워크플로우 2: AI 분석 + 문서 생성 (이모지 트리거 / 수동)
+
+생성된 티켓에 대해 코드베이스를 분석하고 Confluence 분석 문서를 생성합니다.
+
+**트리거 방식:**
+- **이모지 트리거**: 워크플로우 1로 생성된 Slack 메시지에 🤖 이모지를 추가하면 Bot이 감지 → `claude -p`로 실행
+- **수동**: Claude Code에서 직접 입력
+
+**수동 사용 방법:**
+```
+분석해줘
+
+티켓: {PROJECT_KEY}-123
+분석 범위: 백엔드 (또는: 프론트엔드 / 전체)
+```
+
+**실행 결과:**
+1. 코드베이스 분석 (`.claude.local.md`에 정의된 프로젝트 경로 참조)
+2. Confluence 분석 문서 생성 (`.claude.local.md`에 설정된 스페이스 > 분석 폴더)
 3. Jira 티켓에 Confluence 분석 문서 링크 연결
-4. Jira 티켓 상태 전환: `Backlog` → `AI 분석 시작` → `분석 완료` (AI Reviewed)
-5. Slack DM 알림 발송:
-   - 요청자: 분석 완료 알림 (티켓 링크 + 분석 문서 링크 + 담당자 + 상태)
+4. Jira 티켓 설명에 AI 분석 요약 추가
+5. Jira 티켓 상태 전환: `Backlog` → `AI 분석 시작` → `분석 완료` (AI Reviewed)
+6. Slack DM 알림 발송:
+   - 트리거한 사람에게: 분석 완료 알림 (티켓 링크 + 분석 문서 링크 + 담당자 + 상태)
    - 담당자 (있는 경우): 배정 알림 (티켓 링크 + 분석 문서 링크 + 요청자 + 우선순위 + 상태)
 
-### 워크플로우 2: 코드베이스 분석
+### 워크플로우 3: 코드베이스 분석 (단독)
 
-특정 기능이나 버그에 대해 관련 코드를 분석합니다.
+특정 기능이나 버그에 대해 티켓 없이 코드만 분석합니다. (수동 전용)
 
 **사용 방법:**
 ```
@@ -122,11 +240,14 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 
 ## 연동 대상
 
-| 항목 | 값 |
-|------|-----|
-| Jira 프로젝트 | PDPMS |
-| Confluence 스페이스 | PE |
-| 분석 문서 위치 | PE > 🤖 05.AI Analysis |
+연동 대상은 `.claude.local.md`에서 설정합니다:
+
+| 항목 | 설정 키 | 설명 |
+|------|---------|------|
+| Jira 프로젝트 | `{PROJECT_KEY}` | Jira 프로젝트 키 (예: MYPROJECT) |
+| Confluence 스페이스 | `{SPACE_KEY}` | Confluence 스페이스 키 (예: TEAM) |
+| 분석 문서 위치 | `{ANALYSIS_FOLDER}` | 분석 문서 저장 폴더 (예: 🤖 AI Analysis) |
+| Atlassian 사이트 | `{ATLASSIAN_SITE}` | Atlassian 사이트 URL (예: your-company.atlassian.net) |
 
 ---
 
@@ -148,7 +269,7 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 - 기능: `[기능] {제목}`
 - 개선: `[개선] {제목}`
 
-**설명 형식 (원본 요청 Form 유지 + AI 분석 요약만 추가, 상세 내용은 Confluence 분석 문서에 위임):**
+**설명 형식 (워크플로우 1 - 티켓 생성 시):**
 ```
 ## 요청사항
 
@@ -163,8 +284,26 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 
 ## 상세 설명
 
-{원본 요청의 상세 설명을 그대로 유지}
+### 이슈 내용 / 요청 내용
+{내용}
 
+### 발생 현황 / 요청 배경
+{내용}
+
+### AS-IS
+{내용}
+
+### TO-BE
+{내용}
+
+### 기대 효과
+{내용}
+```
+
+> 상세 설명의 하위 섹션은 원본 Form에 내용이 있는 항목만 포함할 것. 비어있는 섹션은 생략.
+
+**워크플로우 2 실행 후 추가되는 내용:**
+```
 ## AI 분석 요약
 
 {1-2문장 핵심 요약}
@@ -175,7 +314,7 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 ### Confluence 분석 문서 템플릿
 
 **제목:** `🤖 {요청 제목} 분석`
-**위치:** PE > 🤖 05.AI Analysis
+**위치:** `.claude.local.md`에 설정된 `{SPACE_KEY}` > `{ANALYSIS_FOLDER}`
 
 **내용 구조:**
 ```
@@ -188,7 +327,7 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 | 요청자 | {이름} |
 | 우선순위 | {우선순위} |
 | 관련 화면 | {화면} |
-| Jira 티켓 | PDPMS-{번호} |
+| Jira 티켓 | {PROJECT_KEY}-{번호} |
 
 ## 요청 내용
 > {원본 요청}
@@ -237,16 +376,37 @@ Claude Code 설정 파일에 Atlassian MCP를 추가해야 합니다.
 아래 규칙 파일들은 워크플로우 실행 시 반드시 참조해야 합니다:
 
 ### Confluence 문서 작업 규칙
-- 워크플로우 1에서 Confluence 분석 문서 생성/수정 시 적용
+- 워크플로우 2에서 Confluence 분석 문서 생성/수정 시 적용
 - 규칙 파일: `.claude/rules/confluence.md` 를 읽을 것
 
 ### 에이전트 모델 전략
-- 워크플로우 2에서 코드베이스 분석 시 서브 에이전트를 활용할 때 적용
+- 워크플로우 2, 3에서 코드베이스 분석 시 서브 에이전트를 활용할 때 적용
 - 규칙 파일: `.claude/rules/agent-strategy.md` 를 읽을 것
 
 ---
 
-## 관련 문서
+## SwiftBar 메뉴바 관리
 
-- [워크플로우 아키텍처 설계](https://dnklabs.atlassian.net/wiki/spaces/PE/pages/8192022)
-- [📋 분석 결과 템플릿](https://dnklabs.atlassian.net/wiki/spaces/PE/pages/9273345)
+봇 프로세스를 macOS 메뉴바에서 시작/중지/상태 확인할 수 있도록 SwiftBar 플러그인을 사용한다.
+
+### 구조
+- `bot/scripts/start-bot.sh` — PID 파일 기반 봇 시작
+- `bot/scripts/stop-bot.sh` — 봇 중지 (PID 기반 + pkill fallback)
+- `bot/scripts/restart-bot.sh` — 중지 → 재시작
+- `swiftbar/*.5s.sh` — SwiftBar 플러그인 (5초 폴링)
+
+### 새 봇 추가 시 SwiftBar 플러그인 작성 절차
+1. `bot/scripts/`에 start/stop/restart 스크립트 작성 (PID 파일: `/tmp/{봇이름}.pid`, 로그: `/tmp/{봇이름}.log`)
+2. `swiftbar/{봇이름}.5s.sh` 플러그인 스크립트 작성 (`workflow-bot.5s.sh`를 템플릿으로 참고)
+3. `chmod +x` 실행 권한 부여
+4. `ln -s $(pwd)/swiftbar/{봇이름}.5s.sh ~/SwiftBar/{봇이름}.5s.sh` 심볼릭 링크 생성
+
+### 설치 (최초 1회)
+```bash
+brew install --cask swiftbar
+mkdir -p ~/SwiftBar
+# SwiftBar 실행 후 플러그인 폴더로 ~/SwiftBar 선택
+open -a SwiftBar
+# 각 플러그인 심볼릭 링크
+ln -s $(pwd)/swiftbar/workflow-bot.5s.sh ~/SwiftBar/workflow-bot.5s.sh
+```

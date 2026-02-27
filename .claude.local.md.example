@@ -12,8 +12,8 @@ cp .claude.local.md.example .claude.local.md
 
 | 프로젝트 | 경로 |
 |---------|------|
-| 백엔드 | `/Users/{username}/projs/dnklabs-pms-back` |
-| 프론트엔드 | `/Users/{username}/projs/dnklabs-pms-front` |
+| 백엔드 | `/Users/{username}/projs/your-backend-project` |
+| 프론트엔드 | `/Users/{username}/projs/your-frontend-project` |
 
 > `{username}` 부분을 자신의 사용자명으로 변경하세요.
 
@@ -23,5 +23,15 @@ Jira/Confluence 연동에 사용되는 계정 정보입니다.
 
 | 항목 | 값 |
 |------|-----|
-| 이메일 | your-email@dnklabs.co |
-| Atlassian 사이트 | dnklabs.atlassian.net |
+| 이메일 | your-email@your-company.com |
+| Atlassian 사이트 | your-company.atlassian.net |
+
+## Jira / Confluence 설정
+
+워크플로우에서 사용하는 프로젝트 및 스페이스 설정입니다.
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| Jira 프로젝트 키 | YOUR_PROJECT_KEY | Jira 프로젝트 키 (예: MYPROJECT) |
+| Confluence 스페이스 키 | YOUR_SPACE_KEY | Confluence 스페이스 키 (예: TEAM) |
+| 분석 문서 폴더 | 🤖 AI Analysis | 분석 문서가 저장될 폴더 경로 |
