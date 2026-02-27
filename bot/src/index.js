@@ -48,7 +48,7 @@ for (const file of handlerFiles) {
   }
 
   console.log('========================================');
-  console.log('PMS Workflow Bot 시작됨');
+  console.log('Workflow Bot 시작됨');
   console.log(`  채널 ID: ${config.slack.channelId || '(미설정 - 모든 채널 감시)'}`);
   console.log(`  분석 트리거 이모지: :${config.slack.triggerEmoji}:`);
   console.log(`  Claude 작업 디렉토리: ${config.claude.workDir}`);
