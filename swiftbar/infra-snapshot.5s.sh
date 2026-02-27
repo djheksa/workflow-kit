@@ -79,27 +79,27 @@ get_snapshot_age() {
 # --- 메뉴바 아이콘 ---
 
 if ! is_running; then
-  echo "🔌"
+  echo "🔌 Infra"
 else
   if is_collecting; then
     phase=$(get_phase)
     case "$phase" in
-      ecs) echo "📡 ecs" ;;
-      route53) echo "📡 dns" ;;
-      alb) echo "📡 alb" ;;
-      cloudfront) echo "📡 cdn" ;;
-      nginx) echo "📡 ngx" ;;
-      codebuild) echo "📡 cb" ;;
-      rds) echo "📡 rds" ;;
-      elasticache) echo "📡 redis" ;;
-      s3) echo "📡 s3" ;;
-      ecr) echo "📡 ecr" ;;
-      ses) echo "📡 ses" ;;
-      params) echo "📡 param" ;;
-      *) echo "📡" ;;
+      ecs) echo "📡 Infra (ecs)" ;;
+      route53) echo "📡 Infra (dns)" ;;
+      alb) echo "📡 Infra (alb)" ;;
+      cloudfront) echo "📡 Infra (cdn)" ;;
+      nginx) echo "📡 Infra (ngx)" ;;
+      codebuild) echo "📡 Infra (cb)" ;;
+      rds) echo "📡 Infra (rds)" ;;
+      elasticache) echo "📡 Infra (redis)" ;;
+      s3) echo "📡 Infra (s3)" ;;
+      ecr) echo "📡 Infra (ecr)" ;;
+      ses) echo "📡 Infra (ses)" ;;
+      params) echo "📡 Infra (param)" ;;
+      *) echo "📡 Infra (수집중)" ;;
     esac
   else
-    echo "📊"
+    echo "📊 Infra"
   fi
 fi
 

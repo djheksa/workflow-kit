@@ -3,6 +3,9 @@
 
 SNAPSHOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PID_FILE="/tmp/infra-snapshot.pid"
+
+# 프로젝트 경로 변수 (변경 시 ~/.claude/personal.md 참조)
+export NGINX_CONF_PATH="/Users/dnk/projs/dnklabs-pms-back/default.conf.template"
 LOG_FILE="/tmp/infra-snapshot.log"
 INTERVAL=1800  # 30분
 
