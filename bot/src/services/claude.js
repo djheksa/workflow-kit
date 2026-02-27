@@ -1,6 +1,7 @@
 const { spawn, exec } = require('child_process');
 const fs = require('fs');
 const { notify } = require('./notify');
+const config = require('../config');
 
 const STATUS_FILE = '/tmp/workflow-bot-status.json';
 
@@ -77,7 +78,6 @@ function _execute(prompt, options) {
     timeoutMs = 5 * 60 * 1000,
   } = options;
 
-  const config = require('../config');
   const workDir = config.claude.workDir;
 
   const args = [
@@ -178,7 +178,7 @@ function runTicketCreation(prompt) {
   notify('Workflow Bot', '티켓 생성 처리 중...');
   return runClaude(prompt, {
     allowedTools: 'Read,Glob,Grep,mcp__atlassian__*,mcp__slack__*',
-    maxTurns: require('../config').claude.maxTurnsTicket,
+    maxTurns: config.claude.maxTurnsTicket,
   }).finally(() => clearStatus());
 }
 
@@ -190,7 +190,7 @@ function runAnalysis(prompt) {
   notify('Workflow Bot', '분석 처리 중...');
   return runClaude(prompt, {
     allowedTools: 'Read,Glob,Grep,Bash,mcp__atlassian__*,mcp__slack__*',
-    maxTurns: require('../config').claude.maxTurnsAnalysis,
+    maxTurns: config.claude.maxTurnsAnalysis,
     timeoutMs: 10 * 60 * 1000, // 분석은 10분
   }).finally(() => clearStatus());
 }

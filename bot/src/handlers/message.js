@@ -39,7 +39,9 @@ function register(app, config) {
         timestamp: event.ts,
         name: 'hourglass_flowing_sand',
       });
-    } catch (_) {}
+    } catch (err) {
+      logger.debug(`이모지 추가 실패 (무시): ${err.message}`);
+    }
 
     // Claude 실행
     try {
@@ -72,7 +74,9 @@ function register(app, config) {
       try {
         await client.reactions.remove({ channel: event.channel, timestamp: event.ts, name: 'hourglass_flowing_sand' });
         await client.reactions.add({ channel: event.channel, timestamp: event.ts, name: 'ticket' });
-      } catch (_) {}
+      } catch (err) {
+        logger.debug(`이모지 변경 실패 (무시): ${err.message}`);
+      }
 
       notify('Workflow Bot', `티켓 생성 완료: ${ticketKey || '(번호 미확인)'}`);
       logger.info(`티켓 생성 완료: ${ticketKey || '(번호 미확인)'}`);
@@ -84,7 +88,9 @@ function register(app, config) {
       try {
         await client.reactions.remove({ channel: event.channel, timestamp: event.ts, name: 'hourglass_flowing_sand' });
         await client.reactions.add({ channel: event.channel, timestamp: event.ts, name: 'x' });
-      } catch (_) {}
+      } catch (err) {
+        logger.debug(`에러 이모지 변경 실패 (무시): ${err.message}`);
+      }
 
       // 스레드에 에러 회신
       try {
@@ -93,7 +99,9 @@ function register(app, config) {
           thread_ts: event.ts,
           text: `티켓 생성 중 오류가 발생했습니다: ${err.message}`,
         });
-      } catch (_) {}
+      } catch (err) {
+        logger.debug(`에러 회신 실패 (무시): ${err.message}`);
+      }
     }
   });
 }

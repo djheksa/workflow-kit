@@ -88,7 +88,7 @@ function parseHeaderFields(section) {
         // 이모지 코드 패턴 제거 후 텍스트만
         fields.priority = value.replace(/:[a-z_]+:/g, '').trim() || value;
       }
-    } else if (key.includes('관련') && key.includes('화면') || key === '관련 화면') {
+    } else if ((key.includes('관련') && key.includes('화면')) || key === '관련 화면') {
       fields.screen = value;
     }
   }

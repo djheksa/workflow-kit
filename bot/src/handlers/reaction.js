@@ -77,7 +77,7 @@ function register(app, config) {
         return;
       }
     } catch (err) {
-      // 무시
+      logger.debug(`이모지 조회 실패 (무시): ${err.message}`);
     }
 
     // 처리 중 표시
@@ -87,7 +87,9 @@ function register(app, config) {
         timestamp: messageTs,
         name: 'hourglass_flowing_sand',
       });
-    } catch (_) {}
+    } catch (err) {
+      logger.debug(`이모지 추가 실패 (무시): ${err.message}`);
+    }
 
     // Claude 분석 실행
     try {
@@ -144,7 +146,9 @@ function register(app, config) {
           timestamp: messageTs,
           name: 'x',
         });
-      } catch (_) {}
+      } catch (err) {
+        logger.debug(`에러 이모지 변경 실패 (무시): ${err.message}`);
+      }
 
       await client.chat.postMessage({
         channel: channelId,
