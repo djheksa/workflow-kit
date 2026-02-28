@@ -1,5 +1,13 @@
 # Workflow Kit
 
+## GitHub
+- 저장소: djheksa/workflow-kit
+- 계정: 개인 (`djheksa`) — push 전 `gh auth switch --user djheksa` 확인
+
+## 함께 업데이트할 파일
+- 새 SwiftBar 플러그인 추가 시: `README.md`의 "SwiftBar 메뉴바 플러그인" 섹션 + 프로젝트 구조 트리
+- 워크플로우 변경 시: 이 파일(`CLAUDE.md`)의 워크플로우 섹션 반영
+
 Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클론하고 해당 경로에서 Claude Code를 실행하면 정의된 워크플로우를 사용할 수 있음.
 
 ## 작업 원칙

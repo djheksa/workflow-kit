@@ -36,6 +36,8 @@ fi
 
 # 3. 새 한도 역산 + 이력 업데이트
 RESULT=$(python3 << PYEOF
+import re, statistics
+
 actual_pct  = float("$ACTUAL_PCT")
 current_msg = int("$CURRENT_MSG")
 
@@ -45,22 +47,41 @@ if actual_pct <= 0:
 
 new_limit = round(current_msg / (actual_pct / 100))
 
-import re
 with open("$PLUGIN_FILE") as f:
     content = f.read()
 
-# 기존 이력 줄 수
-history_lines = re.findall(r'#\s+\d+차:.*', content)
-next_num = len(history_lines) + 1
+# 기존 이력에서 (차수, %, msg, 한도) 파싱
+hist_raw = re.findall(r'#\s+(\d+)차:.*?/usage\s+(\d+)%\s+=\s+(\d+)msg\s+→\s+한도\s+(\d+)msg', content)
+existing = [(int(n), int(p), int(m), int(l)) for n, p, m, l in hist_raw]
+next_num = len(existing) + 1
 
-# 기존 한도 평균 계산
-existing_limits = [int(x) for x in re.findall(r'한도\s+(\d+)msg', content)]
-all_limits = existing_limits + [new_limit]
-avg_limit = round(sum(all_limits) / len(all_limits))
+# 새 포인트 포함한 전체 데이터
+all_points = existing + [(next_num, int(actual_pct), current_msg, new_limit)]
+
+# 유효 포인트 필터: % >= 8, 한도 >= 1500 (구버전 카운팅 방식 데이터 제외)
+valid = [(n, p, m, l) for n, p, m, l in all_points if p >= 8 and l >= 1500]
+
+# IQR 기반 이상치 제거 (데이터 4개 이상일 때만)
+if len(valid) >= 4:
+    limits_only = sorted([l for _, _, _, l in valid])
+    q1 = statistics.quantiles(limits_only, n=4)[0]
+    q3 = statistics.quantiles(limits_only, n=4)[2]
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    valid = [(n, p, m, l) for n, p, m, l in valid if lo <= l <= hi]
+
+# 가중 평균 (% 값이 높을수록 신뢰도 높으므로 가중치로 사용)
+if valid:
+    w_sum = sum(p * l for _, p, _, l in valid)
+    w_cnt = sum(p for _, p, _, _ in valid)
+    avg_limit = round(w_sum / w_cnt)
+else:
+    avg_limit = new_limit
 
 print(f"NEW_LIMIT={new_limit}")
 print(f"AVG_LIMIT={avg_limit}")
 print(f"NEXT_NUM={next_num}")
+print(f"VALID_COUNT={len(valid)}")
 PYEOF
 )
 
@@ -73,6 +94,7 @@ get_r() { echo "$RESULT" | grep "^$1=" | cut -d= -f2-; }
 NEW_LIMIT=$(get_r NEW_LIMIT)
 AVG_LIMIT=$(get_r AVG_LIMIT)
 NEXT_NUM=$(get_r NEXT_NUM)
+VALID_COUNT=$(get_r VALID_COUNT)
 
 # 4. 플러그인 파일 업데이트
 python3 << PYEOF
@@ -102,6 +124,7 @@ PYEOF
 osascript << APPLESCRIPT
 display notification "${NEXT_NUM}차 보정 완료
 입력: ${ACTUAL_PCT}% / ${CURRENT_MSG}msg
-새 한도: ${NEW_LIMIT}msg → 평균: ${AVG_LIMIT}msg" \
+역산 한도: ${NEW_LIMIT}msg
+가중 평균 (유효 ${VALID_COUNT}pt): ${AVG_LIMIT}msg" \
   with title "Claude Usage 보정"
 APPLESCRIPT
