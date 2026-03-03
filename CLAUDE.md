@@ -6,6 +6,8 @@
 
 ## 함께 업데이트할 파일
 - 새 SwiftBar 플러그인 추가 시: `README.md`의 "SwiftBar 메뉴바 플러그인" 섹션 + 프로젝트 구조 트리
+- 새 기능(feature) 추가 시: `features/README.md` 카탈로그 + `README.md` 기능 테이블 + `features/{기능명}/README.md`
+- 새 훅 스크립트 추가 시: `hooks/README.md` 훅 목록 + `features/README.md` 카탈로그
 - 워크플로우 변경 시: 이 파일(`CLAUDE.md`)의 워크플로우 섹션 반영
 
 Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클론하고 해당 경로에서 Claude Code를 실행하면 정의된 워크플로우를 사용할 수 있음.
@@ -15,36 +17,57 @@ Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클�
 - 모르거나 불확실한 사항은 AskUserQuestion을 적극 활용하여 사용자에게 선택지를 제공할 것 (토큰 절약 및 올바른 플로우 실행 목적)
 - 추측하지 말고, 확인이 필요한 사항은 반드시 질문할 것
 
-## 세션 시작 시 환경 체크리스트
+## 세션 시작 동작
 
-세션의 첫 메시지에서 `.claude.local.md` 파일을 읽어 사용자 환경 정보를 확인하고, 아래 체크리스트를 표시할 것:
+세션의 **첫 번째 메시지**에서 `.claude.local.md` 존재 여부를 확인하고 동작을 분기한다.
 
-**출력 형식:**
+### `.claude.local.md` 없을 때 → 기능 소개 출력
+
+아래 형식으로 기능 카탈로그를 출력한 후 초기 설정을 안내한다:
+
 ```
-워크플로우 사용을 위한 환경 체크리스트:
-[ ] .claude.local.md 설정 완료
-[ ] Atlassian MCP 연결 (Jira/Confluence)
-[ ] Slack MCP 연결
-[ ] 백엔드 프로젝트 경로 (.claude.local.md 참조)
-[ ] 프론트엔드 프로젝트 경로 (.claude.local.md 참조)
+## workflow-kit 사용 가능한 기능
 
-위 항목들은 워크플로우 사용을 위한 사전 준비사항입니다.
-환경 검증 과정에 도움이 필요하다면 "도움" 이라고 작성해주세요.
+### 즉시 사용 가능 (설정 불필요)
+[✅] Mac 답변 알림       — hooks/notify-on-stop.sh → hooks/README.md 참조
+[✅] Claude 사용량 모니터 — SwiftBar 심볼릭 링크 설정 → features/claude-usage-monitor/ 참조
+[✅] 코드 작성 표준       — 자동 적용 중
+[✅] Confluence 규칙     — 자동 적용 중
+
+### 설정 필요
+[⬜] Jira/Confluence 워크플로우 — .claude.local.md + Atlassian MCP 필요
+[⬜] Slack 워크플로우 봇        — bot/.env (Slack 토큰) 필요
+[⬜] AWS 인프라 모니터          — AWS CLI + SwiftBar 필요
+
+전체 기능 목록: features/README.md
 ```
 
-**초기 설정 안내:**
-세션 시작 시 `.claude.local.md` 파일이 존재하지 않으면:
-1. `.claude.local.md.example`을 `.claude.local.md`로 복사하라고 안내
-2. 자신의 환경에 맞게 값 수정 안내 (프로젝트 경로, 이메일 등)
-3. 초기 설정이 완료될 때까지 워크플로우 실행을 차단
+이어서 초기 설정 안내를 출력한다:
 
-**환경 검증 절차:**
-사용자가 "도움"을 입력하면:
+```
+Jira/Confluence/Slack 연동을 사용하려면:
+  cp .claude.local.md.example .claude.local.md
+  # 파일 열어 경로, Atlassian 계정 정보 입력
+
+설정 방법이 궁금하면 "도움" 이라고 입력하세요.
+```
+
+### `.claude.local.md` 있을 때 → 조용히 시작
+
+별도 출력 없이 바로 작업 대기.
+
+### 특정 단어 입력 시 → 기능 목록 재출력
+
+사용자가 아래 단어 중 하나를 입력하면 기능 카탈로그를 다시 출력한다:
+- `기능 목록`, `feature list`, `features`, `기능 소개`, `도움말`
+
+### "도움" 입력 시 → 환경 검증
+
 1. `.claude.local.md` 존재 여부 확인
-2. `.claude.local.md`에서 백엔드/프론트엔드 경로를 읽어 해당 디렉토리 존재 여부 검증
+2. 백엔드/프론트엔드 경로 디렉토리 존재 여부 검증
 3. Atlassian MCP 도구 사용 가능 여부 확인
 4. Slack MCP 도구 사용 가능 여부 확인
-5. 실패 항목에 대해 해결 방법 안내
+5. 실패 항목별 해결 방법 안내
 
 ## 사전 요구사항
 

@@ -1,6 +1,23 @@
 # Workflow Kit
 
-Claude Code 기반 워크플로우 자동화 도구입니다.
+Claude Code 기반 워크플로우 자동화 키트입니다.
+
+**전부 설정하지 않아도 됩니다.** 필요한 기능만 골라서 사용하세요.
+
+## 기능 카탈로그
+
+| 기능 | 설정 필요 | 상세 |
+|-----|----------|------|
+| Mac 답변 알림 | 없음 (훅 등록만) | [features/mac-notification/](features/mac-notification/) |
+| Claude 사용량 모니터 | SwiftBar 설치 | [features/claude-usage-monitor/](features/claude-usage-monitor/) |
+| 코드 작성 표준/규칙 | 없음 (자동 적용) | `.claude/rules/` |
+| Jira/Confluence 워크플로우 | Atlassian MCP | [features/jira-confluence-workflow/](features/jira-confluence-workflow/) |
+| Slack 워크플로우 봇 | Slack 앱 + 토큰 | [features/slack-bot/](features/slack-bot/) |
+| AWS 인프라 모니터 | AWS CLI | [features/aws-infra-monitor/](features/aws-infra-monitor/) |
+
+→ 전체 설명: **[features/README.md](features/README.md)**
+
+---
 
 ## 주요 기능
 
@@ -103,6 +120,18 @@ workflow-kit/
 ├── CLAUDE.md                    # 워크플로우 정의서 (Claude Code 규칙)
 ├── .claude.local.md.example     # 사용자별 설정 템플릿
 ├── .claude/rules/               # 실행 규칙 (Confluence, 에이전트 전략)
+│
+├── features/                    # 기능 카탈로그
+│   ├── README.md                # 전체 기능 목록 및 설치 가이드
+│   ├── mac-notification/        # Mac 답변 알림 훅
+│   ├── claude-usage-monitor/    # SwiftBar 사용량 모니터
+│   ├── jira-confluence-workflow/ # Jira/Confluence 워크플로우
+│   ├── slack-bot/               # Slack 워크플로우 봇
+│   └── aws-infra-monitor/       # AWS 인프라 모니터
+│
+├── hooks/                       # Claude Code 훅 스크립트
+│   ├── README.md                # 설치 방법 안내
+│   └── notify-on-stop.sh        # 답변 완료 시 Mac 알림
 │
 ├── bot/                         # Slack Bot
 │   ├── src/handlers/            # 메시지/이모지 이벤트 핸들러
