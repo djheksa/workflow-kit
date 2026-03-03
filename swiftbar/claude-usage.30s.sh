@@ -1,30 +1,20 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Usage</bitbar.title>
-# <bitbar.version>1.3</bitbar.version>
-# <bitbar.desc>Claude Code 5시간 세션 usage 모니터링 (메시지 수 기반)</bitbar.desc>
+# <bitbar.version>1.4</bitbar.version>
+# <bitbar.desc>Claude Code 5시간 세션 usage 모니터링 (출력 토큰 기반)</bitbar.desc>
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 WINDOW_HOURS=5
 
 # ────────────────────────────────────────────
-# 기본 지표: 메시지 수 (cache_r 오차 제거)
+# 기본 지표: 출력 토큰 (output_tokens) — 컨텍스트 압축 포함, /usage 와 가장 잘 일치
 # 캘리브레이션 이력 (% 가중 평균, 이상치 자동 제외):
-#   [구버전 방식 — 제외됨: 1~3차 한도 815~926 (현재 카운팅 방식과 다름)]
-#   6차: /usage 12% = 311msg → 한도 2592msg
-#   7차: /usage 14% = 393msg → 한도 2807msg
-#   8차: /usage 16% = 449msg → 한도 2806msg
-#   9차: /usage 16% = 463msg → 한도 2894msg
-#   11차: /usage 11% = 270msg → 한도 2455msg
-#   12차: /usage 15% = 425msg → 한도 2833msg
-#   13차: /usage 17% = 503msg → 한도 2959msg
-#   14차: /usage 31% = 823msg → 한도 2655msg
-#   16차: /usage 43% = 1431msg → 한도 3328msg
-#   17차: /usage 46% = 1453msg → 한도 3159msg
-#   11차: /usage 49% = 1459msg → 한도 2978msg
-# ※ 가중 평균 기준: % >= 8, 한도 >= 1500, IQR 이상치 제외
+#   [구버전: 메시지 수 기반 — 폐기 (컨텍스트 압축 시 /usage 와 괴리 발생)]
+#   1차: /usage 23% = 187000tok → 한도 813000tok
+# ※ 가중 평균 기준: % >= 8, 한도 >= 500000, IQR 이상치 제외
 # 보조 지표: 비용 (참고용)
-LIMIT_MESSAGES=2956
+LIMIT_OUTPUT_TOKENS=813000
 LIMIT_COST_USD=44.6   # 참고용
 # ────────────────────────────────────────────
 
@@ -32,14 +22,14 @@ USAGE=$(python3 << PYEOF
 import json, os, glob, time
 from datetime import datetime
 
-claude_dir   = os.path.expanduser("~/.claude/projects")
-window_hours = $WINDOW_HOURS
-limit_msg    = $LIMIT_MESSAGES
-limit_cost   = $LIMIT_COST_USD
+claude_dir          = os.path.expanduser("~/.claude/projects")
+window_hours        = $WINDOW_HOURS
+limit_output_tokens = $LIMIT_OUTPUT_TOKENS
+limit_cost          = $LIMIT_COST_USD
 now    = time.time()
-cutoff = now - window_hours * 3600
+cutoff = now - (window_hours + 1) * 3600  # +1h 버퍼 (세션 시작 정각 감지용)
 
-# 1단계: 5시간 내 모든 메시지 수집 (timestamp 순 정렬용)
+# 1단계: 6시간 내 모든 메시지 수집
 all_msgs = []
 
 for jsonl in glob.glob(f"{claude_dir}/**/*.jsonl", recursive=True):
@@ -70,27 +60,29 @@ for jsonl in glob.glob(f"{claude_dir}/**/*.jsonl", recursive=True):
     except Exception:
         pass
 
-# 2단계: 세션 경계 감지 (90분 이상 gap = 세션 리셋)
-SESSION_GAP = 90 * 60  # 90분
+# 2단계: 세션 시작 감지 (정각 기반 — Anthropic 세션은 정각에 시작)
+# gap detection 대신 "아직 만료되지 않은 세션의 가장 오래된 정각" 을 사용
+# → 세션 중 휴식(90분+) 이 있어도 세션이 초기화되지 않음
 all_msgs.sort(key=lambda x: x[0])
 
-session_start_idx = 0
-for i in range(len(all_msgs) - 1, 0, -1):
-    gap = all_msgs[i][0] - all_msgs[i-1][0]
-    if gap >= SESSION_GAP:
-        session_start_idx = i
-        break
-
-# 마지막 메시지로부터 지금까지 90분 이상 공백이면 현재 세션 메시지 없음
-if all_msgs and (now - all_msgs[-1][0]) >= SESSION_GAP:
+# 90분 이상 비활성이면 현재 세션 없음 (표시 목적)
+SESSION_INACTIVITY = 90 * 60
+if all_msgs and (now - all_msgs[-1][0]) >= SESSION_INACTIVITY:
     all_msgs = []
 
-current_msgs = all_msgs[session_start_idx:]
+# 현재도 유효한(만료 안 된) 세션의 가장 오래된 정각을 세션 시작으로 선택
+session_hour_start = (now // 3600) * 3600  # 기본값: 현재 정각
+for epoch, _ in all_msgs:
+    candidate = (epoch // 3600) * 3600
+    if candidate + window_hours * 3600 > now:  # 아직 5시간 내
+        session_hour_start = candidate
+        break
+
+current_msgs = [(e, u) for e, u in all_msgs if e >= session_hour_start]
 
 # 3단계: 집계
 total_in = total_out = total_cache_c = total_cache_r = 0
-msg_count   = 0
-earliest_ts = None
+msg_count = 0
 
 for epoch, u in current_msgs:
     total_in      += u.get("input_tokens", 0)
@@ -98,11 +90,9 @@ for epoch, u in current_msgs:
     total_cache_c += u.get("cache_creation_input_tokens", 0)
     total_cache_r += u.get("cache_read_input_tokens", 0)
     msg_count     += 1
-    if earliest_ts is None or epoch < earliest_ts:
-        earliest_ts = epoch
 
-# --- 사용률 % (메시지 수 기반, 기본 지표) ---
-pct_msg  = min(999, int(msg_count * 100 / limit_msg)) if limit_msg > 0 else 0
+# --- 사용률 % (출력 토큰 기반, 기본 지표) ---
+pct_tok = min(999, int(total_out * 100 / limit_output_tokens)) if limit_output_tokens > 0 else 0
 
 # --- 비용 (참고용) ---
 cost_out     = total_out     * 15.00 / 1_000_000
@@ -113,13 +103,14 @@ total_cost   = cost_out + cost_in + cost_cache_c + cost_cache_r
 pct_cost     = min(999, int(total_cost * 100 / limit_cost)) if limit_cost > 0 else 0
 
 # --- 세션 윈도우 ---
-if earliest_ts:
-    window_end    = earliest_ts + window_hours * 3600
+if msg_count > 0:
+    # session_hour_start 는 2단계에서 이미 계산됨 (정각 기준)
+    window_end    = session_hour_start + window_hours * 3600
     remaining_sec = max(0, int(window_end - now))
     remain_h = remaining_sec // 3600
     remain_m = (remaining_sec % 3600) // 60
     reset_local     = datetime.fromtimestamp(window_end).strftime("%H:%M")
-    win_start_local = datetime.fromtimestamp(earliest_ts).strftime("%H:%M")
+    win_start_local = datetime.fromtimestamp(session_hour_start).strftime("%H:%M")
 else:
     remain_h, remain_m = window_hours, 0
     reset_local = win_start_local = "N/A"
@@ -129,13 +120,14 @@ def fmt(n):
     if n >= 1_000:     return f"{n/1_000:.0f}k"
     return str(n)
 
-pct    = pct_msg
+pct    = pct_tok
 filled = min(10, pct // 10)
 bar    = "█" * filled + "░" * (10 - filled)
 
 print(f"PCT={pct}")
 print(f"BAR={bar}")
 print(f"MSG={msg_count}")
+print(f"OUT_RAW={total_out}")
 print(f"COST={total_cost:.2f}")
 print(f"PCT_COST={pct_cost}")
 print(f"OUT={fmt(total_out)}")
@@ -153,6 +145,7 @@ get_val() { echo "$USAGE" | grep "^$1=" | cut -d= -f2-; }
 PCT=$(get_val PCT)
 BAR=$(get_val BAR)
 MSG=$(get_val MSG)
+OUT_RAW=$(get_val OUT_RAW)
 COST=$(get_val COST)
 PCT_COST=$(get_val PCT_COST)
 OUT=$(get_val OUT)
@@ -190,8 +183,8 @@ echo "---"
 
 if [ -n "$PCT" ] && [ "$MSG" != "0" ]; then
   echo "[${BAR}] ${PCT}% | font=Menlo"
-  echo "메시지: ${MSG} / ${LIMIT_MESSAGES}개 | color=gray size=12"
-  echo "비용 참고: \$${COST} (${PCT_COST}%) | color=gray size=11"
+  echo "출력 토큰: ${OUT} / $(echo "$LIMIT_OUTPUT_TOKENS / 1000" | bc)k | color=gray size=12"
+  echo "메시지: ${MSG}개 | 비용 참고: \$${COST} (${PCT_COST}%) | color=gray size=11"
   echo "---"
   echo "세션: ${WIN_START} → ${RESET} | color=gray"
   echo "리셋까지: ${REMAIN} | color=orange"
@@ -211,5 +204,5 @@ REAL_SCRIPT="$(readlink -f "$0" 2>/dev/null || readlink "$0" 2>/dev/null || echo
 SWIFTBAR_DIR="$(cd "$(dirname "$REAL_SCRIPT")" && pwd)"
 CALIBRATE_SCRIPT="$SWIFTBAR_DIR/scripts/calibrate-claude-usage.sh"
 echo "📐 /usage % 입력해서 보정 | bash=$CALIBRATE_SCRIPT terminal=false refresh=true"
-echo "한도: ${LIMIT_MESSAGES}msg (1pt 캘리브레이션) | color=gray size=11"
+echo "한도: $(echo "$LIMIT_OUTPUT_TOKENS / 1000" | bc)k tok (1pt 캘리브레이션) | color=gray size=11"
 echo "새로고침 | refresh=true"

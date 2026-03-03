@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Usage 캘리브레이션 (메시지 수 기반)
+# Claude Usage 캘리브레이션 (출력 토큰 기반)
 # SwiftBar 메뉴에서 terminal=false로 실행
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
@@ -26,11 +26,63 @@ if ! echo "$ACTUAL_PCT" | grep -qE '^[0-9]+$'; then
   exit 1
 fi
 
-# 2. 현재 메시지 수 가져오기
-CURRENT_MSG=$(bash "$PLUGIN_FILE" | grep "^메시지:" | grep -oE '[0-9]+' | head -1)
+# 2. 현재 출력 토큰 수 직접 계산 (플러그인과 동일한 로직)
+# 주의: 플러그인 출력은 SwiftBar 형식(213k)이라 파싱 불가 → Python으로 직접 계산
+WINDOW_HOURS=5
+CURRENT_OUT_RAW=$(python3 << PYEOF
+import json, os, glob, time
+from datetime import datetime
 
-if [ -z "$CURRENT_MSG" ]; then
-  osascript -e 'display alert "메시지 수 읽기 실패. 잠시 후 다시 시도하세요." as warning'
+claude_dir   = os.path.expanduser("~/.claude/projects")
+window_hours = $WINDOW_HOURS
+now    = time.time()
+cutoff = now - (window_hours + 1) * 3600
+
+all_msgs = []
+for jsonl in glob.glob(f"{claude_dir}/**/*.jsonl", recursive=True):
+    try:
+        if os.path.getmtime(jsonl) < cutoff - 3600:
+            continue
+        with open(jsonl, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    if d.get("type") != "assistant":
+                        continue
+                    ts_str = d.get("timestamp", "")
+                    if not ts_str:
+                        continue
+                    if ts_str.endswith("Z"):
+                        ts_str = ts_str[:-1] + "+00:00"
+                    epoch = datetime.fromisoformat(ts_str).timestamp()
+                    if epoch <= cutoff:
+                        continue
+                    u = d.get("message", {}).get("usage", {})
+                    if u.get("output_tokens", 0) == 0:
+                        continue
+                    all_msgs.append((epoch, u))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+all_msgs.sort(key=lambda x: x[0])
+if all_msgs and (now - all_msgs[-1][0]) >= 90 * 60:
+    all_msgs = []
+
+session_hour_start = (now // 3600) * 3600
+for epoch, _ in all_msgs:
+    candidate = (epoch // 3600) * 3600
+    if candidate + window_hours * 3600 > now:
+        session_hour_start = candidate
+        break
+
+total_out = sum(u.get("output_tokens", 0) for e, u in all_msgs if e >= session_hour_start)
+print(total_out)
+PYEOF)
+
+if [ -z "$CURRENT_OUT_RAW" ] || [ "$CURRENT_OUT_RAW" = "0" ]; then
+  osascript -e 'display alert "출력 토큰 읽기 실패. 잠시 후 다시 시도하세요." as warning'
   exit 1
 fi
 
@@ -38,28 +90,28 @@ fi
 RESULT=$(python3 << PYEOF
 import re, statistics
 
-actual_pct  = float("$ACTUAL_PCT")
-current_msg = int("$CURRENT_MSG")
+actual_pct   = float("$ACTUAL_PCT")
+current_out  = int("$CURRENT_OUT_RAW")
 
 if actual_pct <= 0:
     print("ERROR:0으로 나눌 수 없습니다")
     exit(1)
 
-new_limit = round(current_msg / (actual_pct / 100))
+new_limit = round(current_out / (actual_pct / 100))
 
 with open("$PLUGIN_FILE") as f:
     content = f.read()
 
-# 기존 이력에서 (차수, %, msg, 한도) 파싱
-hist_raw = re.findall(r'#\s+(\d+)차:.*?/usage\s+(\d+)%\s+=\s+(\d+)msg\s+→\s+한도\s+(\d+)msg', content)
+# 기존 이력에서 (차수, %, tok, 한도) 파싱
+hist_raw = re.findall(r'#\s+(\d+)차:.*?/usage\s+(\d+)%\s+=\s+(\d+)tok\s+→\s+한도\s+(\d+)tok', content)
 existing = [(int(n), int(p), int(m), int(l)) for n, p, m, l in hist_raw]
 next_num = len(existing) + 1
 
 # 새 포인트 포함한 전체 데이터
-all_points = existing + [(next_num, int(actual_pct), current_msg, new_limit)]
+all_points = existing + [(next_num, int(actual_pct), current_out, new_limit)]
 
-# 유효 포인트 필터: % >= 8, 한도 >= 1500 (구버전 카운팅 방식 데이터 제외)
-valid = [(n, p, m, l) for n, p, m, l in all_points if p >= 8 and l >= 1500]
+# 유효 포인트 필터: % >= 8, 한도 >= 500000 (너무 낮은 이상치 제거)
+valid = [(n, p, m, l) for n, p, m, l in all_points if p >= 8 and l >= 500000]
 
 # IQR 기반 이상치 제거 (데이터 4개 이상일 때만)
 if len(valid) >= 4:
@@ -104,27 +156,29 @@ with open("$PLUGIN_FILE") as f:
     content = f.read()
 
 # 이력 마지막 줄 뒤에 새 항목 추가
-all_hist = re.findall(r'#\s+\d+차:.*', content)
+all_hist = re.findall(r'#\s+\d+차:.*tok.*', content)
 if all_hist:
     last = sorted(all_hist, key=lambda x: int(re.search(r'\d+', x).group()))[-1]
-    new_line = "#   ${NEXT_NUM}차: /usage ${ACTUAL_PCT}% = ${CURRENT_MSG}msg → 한도 ${NEW_LIMIT}msg"
+    new_line = "#   ${NEXT_NUM}차: /usage ${ACTUAL_PCT}% = ${CURRENT_OUT_RAW}tok → 한도 ${NEW_LIMIT}tok"
     content = content.replace(last, last + "\n" + new_line)
 
-# 한도: N msg (Npt 캘리브레이션) 줄 업데이트
-content = re.sub(r'한도: \d+msg \(\d+pt 캘리브레이션\)', f'한도: ${AVG_LIMIT}msg (${NEXT_NUM}pt 캘리브레이션)', content)
+# 한도 표시 줄 업데이트
+content = re.sub(r'한도: \d+k tok \(\d+pt 캘리브레이션\)', f'한도: {round(int("${AVG_LIMIT}") / 1000)}k tok (${NEXT_NUM}pt 캘리브레이션)', content)
 
-# LIMIT_MESSAGES 값 업데이트
-content = re.sub(r'LIMIT_MESSAGES=\d+', f'LIMIT_MESSAGES=${AVG_LIMIT}', content)
+# LIMIT_OUTPUT_TOKENS 값 업데이트
+content = re.sub(r'LIMIT_OUTPUT_TOKENS=\d+', f'LIMIT_OUTPUT_TOKENS=${AVG_LIMIT}', content)
 
 with open("$PLUGIN_FILE", "w") as f:
     f.write(content)
 PYEOF
 
 # 5. 완료 알림
+NEW_LIMIT_K=$(echo "$NEW_LIMIT / 1000" | bc)
+AVG_LIMIT_K=$(echo "$AVG_LIMIT / 1000" | bc)
 osascript << APPLESCRIPT
 display notification "${NEXT_NUM}차 보정 완료
-입력: ${ACTUAL_PCT}% / ${CURRENT_MSG}msg
-역산 한도: ${NEW_LIMIT}msg
-가중 평균 (유효 ${VALID_COUNT}pt): ${AVG_LIMIT}msg" \
+입력: ${ACTUAL_PCT}% / ${CURRENT_OUT_RAW}tok
+역산 한도: ${NEW_LIMIT_K}k tok
+가중 평균 (유효 ${VALID_COUNT}pt): ${AVG_LIMIT_K}k tok" \
   with title "Claude Usage 보정"
 APPLESCRIPT
