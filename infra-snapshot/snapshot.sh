@@ -51,6 +51,41 @@ print(' / '.join(parts))
 done
 echo ""
 
+# 1-b. PM사별 로컬 실행 설정 (Task Definition 환경변수)
+update_status "running" "ecs"
+echo "## PM사별 로컬 실행 설정"
+echo ""
+echo "| PM사 | TENANT_ID | AES 키 | S3 버킷 (운영) | 로컬 포트 |"
+echo "|------|-----------|--------|--------------|---------|"
+
+for pmc in ghp woorileo kyoborealco krservice vills; do
+  case "$pmc" in
+    ghp)         port=8080 ;;
+    woorileo)    port=8082 ;;
+    kyoborealco) port=8083 ;;
+    krservice)   port=8084 ;;
+    vills)       port=8085 ;;
+    *)           port="?" ;;
+  esac
+  td_name="dnklabs-pms-prod-${pmc}"
+  env_json=$(aws ecs describe-task-definition \
+    --task-definition "$td_name" \
+    --region $REGION \
+    --query 'taskDefinition.containerDefinitions[?name==`dnklabs-backend-prod-repo`].environment[]' \
+    --output json 2>/dev/null)
+
+  echo "$env_json" | python3 -c "
+import json, sys
+envs = json.load(sys.stdin)
+e = {x['name']: x['value'] for x in envs}
+tenant = e.get('TENANT_ID', '-')
+aes    = e.get('APP_AES_ENCRYPTION_SECRET', '-')
+s3     = e.get('APP_AWS_S3_BUCKET', '-')
+print(f'| $pmc | {tenant} | {aes} | {s3} | $port |')
+" 2>/dev/null || echo "| $pmc | - | - | - | $port |"
+done
+echo ""
+
 # 2. Route53 도메인
 update_status "running" "route53"
 echo "## 도메인 (Route53)"
