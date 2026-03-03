@@ -9,9 +9,10 @@ Claude Code 훅 스크립트 모음.
 
 ## 제공 훅
 
-| 스크립트 | 이벤트 | 기능 |
-|---------|--------|------|
-| `notify-on-stop.sh` | Stop | Claude 답변 완료 시 Mac 데스크탑 알림 |
+| 스크립트 | 이벤트 | 기능 | 기본 활성화 |
+|---------|--------|------|------------|
+| `notify-on-stop.sh` | Stop | Claude 답변 완료 시 Mac 데스크탑 알림 | 수동 설치 |
+| `precompact-save-summary.sh` | PreCompact | 컨텍스트 압축 전 세션 요약 자동 저장 | `.claude/settings.json` 등록됨 |
 
 ---
 
@@ -82,8 +83,35 @@ Claude Code는 훅 이벤트 발생 시 스크립트의 stdin으로 JSON을 전�
 
 ---
 
+---
+
+## 2. `precompact-save-summary.sh` — 세션 요약 자동 저장
+
+컨텍스트 압축이 발생하기 직전에 현재 세션의 수정 파일 목록과 최근 응답 요약을 파일로 저장한다.
+
+**저장 위치:** `/tmp/claude-session-{프로젝트명}.md` (세션별 누적)
+
+**이미 `.claude/settings.json`에 등록되어 있어 클론 후 바로 동작한다.**
+
+저장 내용:
+- 이 세션에서 수정된 파일 전체 목록
+- 압축 직전 마지막 응답 3개 요약 (최대 300자)
+
+**동작 확인:**
+```bash
+# 수동 테스트
+TRANSCRIPT=$(ls -t ~/.claude/projects/$(basename $PWD | tr '/' '-')/*.jsonl 2>/dev/null | head -1)
+echo "{\"cwd\":\"$PWD\",\"transcript_path\":\"$TRANSCRIPT\"}" \
+  | bash hooks/precompact-save-summary.sh
+
+# 저장 결과 확인
+cat /tmp/claude-session-$(basename $PWD).md
+```
+
+---
+
 ## 주의사항
 
-- macOS 전용 (`osascript` 사용)
+- `notify-on-stop.sh`: macOS 전용 (`osascript` 사용)
 - 이미 `~/.claude/settings.json`에 Stop 훅이 있으면 **중복 알림**이 올 수 있음 → 기존 전역 훅 제거 권장
 - macOS 알림 권한이 필요함 (시스템 설정 > 알림 > Terminal 허용)

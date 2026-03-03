@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash hooks/precompact-save-summary.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
