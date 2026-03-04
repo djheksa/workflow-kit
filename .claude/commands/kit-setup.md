@@ -39,6 +39,7 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
 | Notification | `elicitation_dialog` | `notify-on-permission.sh` | 승인 필요 알림 |
 | Notification | `permission_prompt` | `notify-on-permission.sh` | 권한 요청 알림 |
 | PreToolUse | `AskUserQuestion` | `notify-on-permission.sh` | 질문 알림 |
+| PostToolUse | `Task` | `agent-log.sh` | 에이전트 실행 결과 로그 기록 |
 
 **절차:**
 
@@ -69,6 +70,12 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
         "matcher": "AskUserQuestion",
         "hooks": [{"type": "command", "command": "bash {경로}/hooks/notify-on-permission.sh"}]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [{"type": "command", "command": "bash {경로}/hooks/agent-log.sh"}]
+      }
     ]
   }
 }
@@ -76,7 +83,7 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
 (`{경로}`는 1단계에서 확인한 프로젝트 절대 경로로 대체)
 
 4. 파일 저장
-5. `chmod +x hooks/notify-on-stop.sh hooks/notify-on-permission.sh` 실행
+5. `chmod +x hooks/notify-on-stop.sh hooks/notify-on-permission.sh hooks/agent-log.sh` 실행
 6. 완료 메시지 출력
 
 ---
@@ -168,6 +175,30 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
        "ATLASSIAN_SITE": "{사이트}",
        "ATLASSIAN_USER_EMAIL": "{이메일}",
        "ATLASSIAN_API_TOKEN": "{토큰}"
+     }
+   }
+   ```
+5. 완료 메시지 출력
+
+#### C. Slack MCP 설정
+
+Jira/Confluence 워크플로우에서 담당자/요청자에게 DM을 발송할 때 Slack MCP가 필요하다.
+
+1. `~/.claude.json` 읽기 (이미 읽었으면 재사용)
+2. `mcpServers.slack` 키가 이미 있으면:
+   - AskUserQuestion: "Slack MCP가 이미 설정되어 있습니다. 덮어쓸까요?"
+     - 덮어쓰기 / 유지
+3. 없거나 덮어쓰기 선택 시 AskUserQuestion:
+   - "Slack Bot Token (xoxb-...) — Slack 앱의 Bot Token"
+   - "Slack Team ID (T로 시작하는 워크스페이스 ID — Slack 앱 > About 또는 URL에서 확인)"
+4. `~/.claude.json`의 `mcpServers`에 추가:
+   ```json
+   "slack": {
+     "command": "npx",
+     "args": ["-y", "@modelcontextprotocol/server-slack"],
+     "env": {
+       "SLACK_BOT_TOKEN": "{bot_token}",
+       "SLACK_TEAM_ID": "{team_id}"
      }
    }
    ```
