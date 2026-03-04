@@ -207,36 +207,32 @@ Slack 메시지 또는 수동 입력으로 Jira 티켓을 생성하고, 요청�
 1. Jira 티켓 생성 (`.claude.local.md`에 설정된 프로젝트, 상태: Backlog)
 2. 원본 메시지에 스레드 댓글:
 ```
-티켓 생성 완료: {PROJECT_KEY}-XXX
-https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
+티켓 생성 완료: <https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>
 ```
 3. Slack DM 알림 발송:
    - 요청자 DM:
 ```
 :clipboard: Jira 티켓 생성 완료
 
-• 티켓: {PROJECT_KEY}-XXX
+• 티켓: <https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>
 • 제목: [기능] XXX
 • 우선순위: 보통
-• 담당자: OOO (없으면 '미지정')
+• 담당자: OOO (없으면 미지정)
 • 상태: Backlog
-
-https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
 ```
    - 담당자 DM (담당자가 있고, **요청자와 다른 사람인 경우만**):
 ```
 :clipboard: Jira 티켓 배정 알림
 
-• 티켓: {PROJECT_KEY}-XXX
+• 티켓: <https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>
 • 제목: [기능] XXX
 • 요청자: OOO
 • 우선순위: 보통
 • 상태: Backlog
-
-https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
 ```
 
 > **중복 DM 방지**: 요청자와 담당자가 동일 인물이면 요청자 DM만 발송하고 담당자 DM은 생략할 것.
+> **링크 형식**: Slack 메시지 내 URL은 반드시 `<URL|표시텍스트>` 형식으로 하이퍼링크 처리할 것 (plain URL 금지)
 
 ### 워크플로우 2: AI 분석 + 문서 생성 (이모지 트리거 / 수동)
 
@@ -260,9 +256,35 @@ https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
 3. Jira 티켓에 Confluence 분석 문서 링크 연결
 4. Jira 티켓 설명에 AI 분석 요약 추가
 5. Jira 티켓 상태 전환: `Backlog` → `AI 분석 시작` → `분석 완료` (AI Reviewed)
-6. Slack DM 알림 발송:
-   - 트리거한 사람에게: 분석 완료 알림 (티켓 링크 + 분석 문서 링크 + 담당자 + 상태)
-   - 담당자 (있는 경우): 배정 알림 (티켓 링크 + 분석 문서 링크 + 요청자 + 우선순위 + 상태)
+6. 원본 메시지에 스레드 댓글:
+```
+*<https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>* 분석이 완료되었습니다.
+분석 문서: <{Confluence URL}|🤖 {Confluence 문서 제목}>
+```
+7. Slack DM 알림 발송:
+   - 트리거한 사람 DM:
+```
+:mag: AI 분석 완료
+
+• 티켓: <https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>
+• 제목: XXX
+• 담당자: OOO (없으면 미지정)
+• 상태: AI Reviewed
+• 분석 문서: <{Confluence URL}|🤖 {Confluence 문서 제목}>
+```
+   - 담당자 DM (있는 경우):
+```
+:mag: Jira 티켓 분석 완료 — 담당자 배정
+
+• 티켓: <https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX|{PROJECT_KEY}-XXX>
+• 제목: XXX
+• 요청자: OOO
+• 우선순위: 보통
+• 상태: AI Reviewed
+• 분석 문서: <{Confluence URL}|🤖 {Confluence 문서 제목}>
+```
+
+> **링크 형식**: Slack 메시지 내 URL은 반드시 `<URL|표시텍스트>` 형식으로 하이퍼링크 처리할 것 (plain URL 금지)
 
 ### 워크플로우 3: 코드베이스 분석 (단독)
 
@@ -348,8 +370,10 @@ https://{ATLASSIAN_SITE}/browse/{PROJECT_KEY}-XXX
 
 {1-2문장 핵심 요약}
 
-분석 문서: {Confluence 링크}
+분석 문서: [🤖 {Confluence 문서 제목}|{Confluence URL}]
 ```
+> Jira 설명 내 링크: `[표시텍스트|URL]` Jira 위키 마크업 형식 (plain URL 금지)
+> Slack 메시지 내 링크: `<URL|표시텍스트>` 형식 (plain URL 금지)
 
 ### Confluence 분석 문서 템플릿
 
