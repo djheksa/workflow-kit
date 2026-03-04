@@ -8,6 +8,7 @@
 - 새 SwiftBar 플러그인 추가 시: `README.md`의 "SwiftBar 메뉴바 플러그인" 섹션 + 프로젝트 구조 트리
 - 새 기능(feature) 추가 시: `features/README.md` 카탈로그 + `README.md` 기능 테이블 + `features/{기능명}/README.md`
 - 새 훅 스크립트 추가 시: `hooks/README.md` 훅 목록 + `features/README.md` 카탈로그
+- 새 기능을 `/kit-setup`에 추가 시: `.claude/commands/kit-setup.md`의 기능 선택지 + 설정 절차 + 완료 요약 테이블
 - 워크플로우 변경 시: 이 파일(`CLAUDE.md`)의 워크플로우 섹션 반영
 
 Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클론하고 해당 경로에서 Claude Code를 실행하면 정의된 워크플로우를 사용할 수 있음.
@@ -54,11 +55,10 @@ Claude Code에서 사용하는 워크플로우 도구. 이 프로젝트를 클�
 이어서 초기 설정 안내를 출력한다:
 
 ```
-Jira/Confluence/Slack 연동을 사용하려면:
-  cp .claude.local.md.example .claude.local.md
-  # 파일 열어 경로, Atlassian 계정 정보 입력
+설정 마법사: /kit-setup
+(기능을 선택하면 단계별로 안내합니다)
 
-설정 방법이 궁금하면 "도움" 이라고 입력하세요.
+설정 상태가 궁금하면 "도움" 이라고 입력하세요.
 ```
 
 ### `.claude.local.md` 있을 때 → 조용히 시작

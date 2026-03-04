@@ -64,30 +64,19 @@ macOS 메뉴바에서 각 서비스의 상태 확인 및 제어가 가능합니�
 
 ## 빠른 시작
 
-1. 이 저장소를 클론합니다
-   ```bash
-   git clone <repo-url>
-   cd workflow-kit
-   ```
-2. 로컬 설정 파일을 생성합니다
-   ```bash
-   cp .claude.local.md.example .claude.local.md
-   ```
-3. `.claude.local.md`를 열어 자신의 환경에 맞게 수정합니다
-   - 백엔드/프론트엔드 프로젝트 경로
-   - Atlassian 사이트 URL 및 이메일
-   - Jira 프로젝트 키, Confluence 스페이스 키
-4. Atlassian MCP를 설정합니다 (아래 참조)
-5. (봇 사용 시) 봇 환경변수를 설정합니다
-   ```bash
-   cd bot
-   cp .env.example .env
-   # .env 파일을 열어 필수 값 입력
-   ```
-6. 해당 디렉토리에서 Claude Code를 실행합니다
-   ```bash
-   claude
-   ```
+```bash
+git clone <repo-url>
+cd workflow-kit
+claude
+```
+
+Claude Code 실행 후 슬래시 커맨드로 설정 마법사를 실행합니다:
+
+```
+/kit-setup
+```
+
+설정할 기능을 선택하면 필요한 값을 단계별로 안내합니다. 수동 설정이 필요하면 각 기능의 `features/{기능명}/README.md`를 참조하세요.
 
 ## 사전 요구사항
 
