@@ -16,9 +16,10 @@ WINDOW_HOURS=5
 #   3차: /usage 38% = 324989tok → 한도 855234tok
 #   4차: /usage 42% = 364856tok → 한도 868705tok
 #   5차: /usage 42% = 370061tok → 한도 881098tok
+#   6차: /usage 44% = 391104tok → 한도 888873tok
 # ※ 가중 평균 기준: % >= 8, 한도 >= 500000, IQR 이상치 제외
 # 보조 지표: 비용 (참고용)
-LIMIT_OUTPUT_TOKENS=849523
+LIMIT_OUTPUT_TOKENS=857322
 LIMIT_COST_USD=44.6   # 참고용
 # ────────────────────────────────────────────
 

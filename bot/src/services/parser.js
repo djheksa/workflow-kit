@@ -221,12 +221,16 @@ function parseFormMessage(text) {
 /**
  * 파싱된 데이터를 Claude 프롬프트 문자열로 변환
  */
-function buildTicketPrompt(parsed) {
-  let prompt = `티켓 생성해줘\n\n`;
-  prompt += `유형: ${parsed.type}\n`;
+function buildTicketPrompt(parsed, config = {}) {
+  let prompt = `[headless 모드 - 봇 자동 실행]\n세션 초기화, 기능 소개, 환경 체크 없이 바로 워크플로우를 실행할 것.\n`;
+  if (config.jiraProjectKey) {
+    prompt += `\n## 설정 정보 (파일 읽기 불필요, 이 값을 그대로 사용)\nJira 프로젝트 키: ${config.jiraProjectKey}\nAtlassian 사이트: ${config.atlassianSite || ''}\n`;
+  }
+  prompt += `\n티켓 생성해줘\n\n`;
+  prompt += `유형: ${parsed.type || '기타'}\n`;
   prompt += `제목: ${parsed.title}\n`;
-  prompt += `우선순위: ${parsed.priority}\n`;
-  prompt += `관련 화면: ${parsed.screen}\n`;
+  prompt += `우선순위: ${parsed.priority || '보통'}\n`;
+  prompt += `관련 화면: ${parsed.screen || '미지정'}\n`;
 
   prompt += `\n상세 설명:\n`;
   for (const [key, value] of Object.entries(parsed.description)) {
@@ -235,18 +239,39 @@ function buildTicketPrompt(parsed) {
     }
   }
 
+  const requesterSlackId = parsed.requester?.slackId;
+  const assigneeSlackId = parsed.assignee?.slackId;
+
   if (parsed.requester) {
-    const requesterInfo = parsed.requester.slackId
-      ? `<@${parsed.requester.slackId}>`
+    const requesterInfo = requesterSlackId
+      ? `<@${requesterSlackId}>`
       : (parsed.requester.name || parsed.requester.raw || '미지정');
     prompt += `요청자: ${requesterInfo}\n`;
   }
 
   if (parsed.assignee) {
-    const assigneeInfo = parsed.assignee.slackId
-      ? `<@${parsed.assignee.slackId}>`
+    const assigneeInfo = assigneeSlackId
+      ? `<@${assigneeSlackId}>`
       : (parsed.assignee.name || parsed.assignee.raw);
     prompt += `담당자: ${assigneeInfo}\n`;
+  }
+
+  prompt += `\n## 완료 후 처리 (순서대로 실행)\n`;
+  if (config.slackChannel && config.slackTs) {
+    prompt += `1. Slack 스레드 댓글 달기: 채널 ${config.slackChannel}, ts ${config.slackTs} 에 스레드 댓글로 "티켓 생성 완료: {티켓번호}\\n{티켓URL}" 형식으로 달 것\n`;
+    prompt += `2. 요청자에게 DM: 티켓 번호, 제목, 우선순위, 담당자(없으면 미지정), 링크 포함\n`;
+    if (requesterSlackId && assigneeSlackId && requesterSlackId !== assigneeSlackId) {
+      prompt += `3. 담당자에게 DM: 티켓 번호, 제목, 요청자, 우선순위, 링크 포함\n`;
+    } else if (requesterSlackId === assigneeSlackId) {
+      prompt += `3. 요청자와 담당자가 동일하므로 담당자 DM 생략\n`;
+    }
+  } else {
+    prompt += `1. 요청자에게 DM: 티켓 번호, 제목, 우선순위, 담당자(없으면 미지정), 링크 포함\n`;
+    if (requesterSlackId && assigneeSlackId && requesterSlackId !== assigneeSlackId) {
+      prompt += `2. 담당자에게 DM: 티켓 번호, 제목, 요청자, 우선순위, 링크 포함\n`;
+    } else if (requesterSlackId === assigneeSlackId) {
+      prompt += `2. 요청자와 담당자가 동일하므로 담당자 DM 생략\n`;
+    }
   }
 
   return prompt;
@@ -256,7 +281,7 @@ function buildTicketPrompt(parsed) {
  * 분석 워크플로우 프롬프트 생성
  */
 function buildAnalysisPrompt(ticketKey, triggeredBy) {
-  return `분석해줘\n\n티켓: ${ticketKey}\n분석 범위: 전체\n트리거한 사람: ${triggeredBy}\n`;
+  return `[headless 모드 - 봇 자동 실행]\n세션 초기화, 기능 소개, 환경 체크 없이 바로 워크플로우를 실행할 것.\n\n분석해줘\n\n티켓: ${ticketKey}\n분석 범위: 전체\n트리거한 사람: ${triggeredBy}\n`;
 }
 
 module.exports = {

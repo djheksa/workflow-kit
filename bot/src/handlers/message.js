@@ -43,34 +43,19 @@ function register(app, config) {
       logger.debug(`이모지 추가 실패 (무시): ${err.message}`);
     }
 
-    // Claude 실행
+    // Claude 실행 (스레드 댓글 + DM까지 Claude가 직접 처리)
     try {
-      const prompt = buildTicketPrompt(parsed);
+      const prompt = buildTicketPrompt(parsed, {
+        jiraProjectKey: config.jira.projectKey,
+        atlassianSite: config.atlassian.site,
+        slackChannel: event.channel,
+        slackTs: event.ts,
+      });
       logger.info(`claude -p 실행: 티켓 생성 (${parsed.title})`);
 
-      const result = await runTicketCreation(prompt);
+      await runTicketCreation(prompt);
 
-      // 티켓 번호 추출 (프로젝트 키 기반 동적 매칭)
-      const projectKey = config.jira.projectKey;
-      const ticketPattern = new RegExp(`${projectKey}-\\d+`);
-      const ticketMatch = result.result?.match(ticketPattern);
-      const ticketKey = ticketMatch ? ticketMatch[0] : null;
-
-      // 스레드에 결과 회신
-      let replyText = '';
-      if (ticketKey) {
-        replyText = `티켓 생성 완료: ${ticketKey}\n${config.atlassian.browseUrl}/${ticketKey}`;
-      } else {
-        replyText = `티켓 생성이 완료되었습니다.\n\n${result.result?.substring(0, 500) || '(결과 없음)'}`;
-      }
-
-      await client.chat.postMessage({
-        channel: event.channel,
-        thread_ts: event.ts,
-        text: replyText,
-      });
-
-      // 처리 완료 이모지 (스코프 없으면 무시)
+      // 처리 완료 이모지
       try {
         await client.reactions.remove({ channel: event.channel, timestamp: event.ts, name: 'hourglass_flowing_sand' });
         await client.reactions.add({ channel: event.channel, timestamp: event.ts, name: 'ticket' });
@@ -78,8 +63,8 @@ function register(app, config) {
         logger.debug(`이모지 변경 실패 (무시): ${err.message}`);
       }
 
-      notify('Workflow Bot', `티켓 생성 완료: ${ticketKey || '(번호 미확인)'}`);
-      logger.info(`티켓 생성 완료: ${ticketKey || '(번호 미확인)'}`);
+      notify('Workflow Bot', `티켓 생성 완료`);
+      logger.info(`티켓 생성 완료: ${parsed.title}`);
     } catch (err) {
       notify('Workflow Bot', `티켓 생성 실패: ${err.message.substring(0, 100)}`);
       logger.error(`티켓 생성 실패: ${err.message}`);

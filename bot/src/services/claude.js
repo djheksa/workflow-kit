@@ -104,7 +104,7 @@ function _execute(prompt, options) {
     let stderr = '';
     let resolved = false;
 
-    const GRACE_PERIOD = 10 * 1000; // JSON 수신 후 프로세스 종료 대기 10초
+    const GRACE_PERIOD = 2 * 1000; // JSON 수신 후 프로세스 종료 대기 2초
 
     function tryResolveFromStdout() {
       if (resolved) return;
@@ -134,7 +134,9 @@ function _execute(prompt, options) {
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      process.stderr.write(`[claude] ${chunk}`);
     });
 
     const timeout = setTimeout(() => {
@@ -146,6 +148,7 @@ function _execute(prompt, options) {
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
+
       if (resolved) return; // 이미 stdout JSON으로 resolve됨
 
       if (code === 0) {
@@ -177,7 +180,7 @@ function runTicketCreation(prompt) {
   writeStatus('processing', 'ticket');
   notify('Workflow Bot', '티켓 생성 처리 중...');
   return runClaude(prompt, {
-    allowedTools: 'Read,Glob,Grep,mcp__atlassian__*,mcp__slack__*',
+    allowedTools: 'Read,Glob,Grep,mcp__atlassian__*,mcp__slack__*,mcp__claude_ai_Atlassian__*',
     maxTurns: config.claude.maxTurnsTicket,
   }).finally(() => clearStatus());
 }
@@ -189,7 +192,7 @@ function runAnalysis(prompt) {
   writeStatus('processing', 'analysis');
   notify('Workflow Bot', '분석 처리 중...');
   return runClaude(prompt, {
-    allowedTools: 'Read,Glob,Grep,Bash,mcp__atlassian__*,mcp__slack__*',
+    allowedTools: 'Read,Glob,Grep,Bash,mcp__atlassian__*,mcp__slack__*,mcp__claude_ai_Atlassian__*',
     maxTurns: config.claude.maxTurnsAnalysis,
     timeoutMs: 10 * 60 * 1000, // 분석은 10분
   }).finally(() => clearStatus());

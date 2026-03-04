@@ -56,7 +56,7 @@ module.exports = {
   },
   claude: {
     workDir: process.env.CLAUDE_WORK_DIR || process.cwd(),
-    maxTurnsTicket: parseInt(process.env.CLAUDE_MAX_TURNS_TICKET) || 15,
+    maxTurnsTicket: parseInt(process.env.CLAUDE_MAX_TURNS_TICKET) || 25,
     maxTurnsAnalysis: parseInt(process.env.CLAUDE_MAX_TURNS_ANALYSIS) || 25,
   },
 };

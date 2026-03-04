@@ -62,17 +62,23 @@ function register(app, config) {
       return;
     }
 
-    // 이미 분석이 진행 중인지 확인 (⏳ 이모지 존재 여부)
+    // 이미 분석 완료 또는 진행 중인지 확인
+    // white_check_mark(✅) = 분석 완료 마커 (트리거 이모지 robot_face와 분리)
     try {
       const reactions = await client.reactions.get({
         channel: channelId,
         timestamp: messageTs,
       });
 
-      const hasHourglass = reactions.message?.reactions?.some(
-        (r) => r.name === 'hourglass_flowing_sand'
-      );
-      if (hasHourglass) {
+      const reactionNames = reactions.message?.reactions?.map((r) => r.name) || [];
+      if (reactionNames.includes('white_check_mark')) {
+        logger.info('이미 분석 완료된 메시지, 건너뜀');
+        return;
+      }
+      // ticket + hourglass 조합 = 분석 진행 중
+      const hasTicket = reactionNames.includes('ticket');
+      const hasHourglass = reactionNames.includes('hourglass_flowing_sand');
+      if (hasTicket && hasHourglass) {
         logger.info('이미 분석 진행 중, 건너뜀');
         return;
       }
@@ -91,26 +97,23 @@ function register(app, config) {
       logger.debug(`이모지 추가 실패 (무시): ${err.message}`);
     }
 
-    // Claude 분석 실행
+    // Claude 분석 실행 (분석 + Confluence 문서 + Jira 연결/상태전환 + DM은 Claude가 처리)
     try {
       const prompt = buildAnalysisPrompt(ticketKey, triggeredByName);
       logger.info(`claude -p 실행: 분석 (${ticketKey})`);
 
       const result = await runAnalysis(prompt);
 
-      // Confluence 문서 링크 추출
+      // Confluence 문서 링크 추출 (result.result에서)
       const wikiUrlEscaped = config.atlassian.wikiUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const confluenceMatch = result.result?.match(
-        new RegExp(`${wikiUrlEscaped}/[^\\s)]+`)
-      );
+      const confluenceMatch = result.result?.match(new RegExp(`${wikiUrlEscaped}/[^\\s)]+`));
       const confluenceLink = confluenceMatch ? confluenceMatch[0] : null;
 
-      // 스레드에 결과 회신
+      // 봇이 스레드에 결과 댓글 달기
       let replyText = `*${ticketKey}* 분석이 완료되었습니다.`;
       if (confluenceLink) {
         replyText += `\n분석 문서: ${confluenceLink}`;
       }
-
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: messageTs,
@@ -118,16 +121,12 @@ function register(app, config) {
       });
 
       // 처리 완료 이모지
-      await client.reactions.remove({
-        channel: channelId,
-        timestamp: messageTs,
-        name: 'hourglass_flowing_sand',
-      });
-      await client.reactions.add({
-        channel: channelId,
-        timestamp: messageTs,
-        name: 'robot_face',
-      });
+      try {
+        await client.reactions.remove({ channel: channelId, timestamp: messageTs, name: 'hourglass_flowing_sand' });
+        await client.reactions.add({ channel: channelId, timestamp: messageTs, name: 'white_check_mark' });
+      } catch (err) {
+        logger.debug(`완료 이모지 변경 실패 (무시): ${err.message}`);
+      }
 
       notify('Workflow Bot', `${ticketKey} 분석 완료`);
       logger.info(`분석 완료: ${ticketKey}`);
