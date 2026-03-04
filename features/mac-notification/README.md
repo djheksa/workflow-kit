@@ -11,32 +11,44 @@ Claude Code가 답변을 마칠 때마다 macOS 알림 센터에 알림을 표�
 
 ## 파일
 
-- `hooks/notify-on-stop.sh` — 알림 스크립트
+- `hooks/notify-on-stop.sh` — 답변 완료 알림 (Stop 이벤트)
+- `hooks/notify-on-permission.sh` — 승인/권한/질문 알림 (Notification, PreToolUse 이벤트)
 
 ## 설치
 
 ### 방법 1: 전역 설치 (모든 프로젝트)
 
-`~/.claude/settings.json`을 열어 `hooks.Stop` 배열에 추가:
+`~/.claude/settings.json`에 아래 훅 3종을 추가 (경로는 실제 경로로 변경):
 
 ```json
 {
   "hooks": {
     "Stop": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/your-name/workflow-kit/hooks/notify-on-stop.sh"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "bash /path/to/workflow-kit/hooks/notify-on-stop.sh"}]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "elicitation_dialog",
+        "hooks": [{"type": "command", "command": "bash /path/to/workflow-kit/hooks/notify-on-permission.sh"}]
+      },
+      {
+        "matcher": "permission_prompt",
+        "hooks": [{"type": "command", "command": "bash /path/to/workflow-kit/hooks/notify-on-permission.sh"}]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [{"type": "command", "command": "bash /path/to/workflow-kit/hooks/notify-on-permission.sh"}]
       }
     ]
   }
 }
 ```
 
-> `/Users/your-name/workflow-kit` 부분을 실제 경로로 변경
+> `/kit-setup` 커맨드를 사용하면 경로 포함 자동 설정됩니다.
 
 ### 방법 2: 이 프로젝트 한정
 

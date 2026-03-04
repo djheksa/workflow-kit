@@ -12,6 +12,7 @@ Claude Code 훅 스크립트 모음.
 | 스크립트 | 이벤트 | 기능 | 기본 활성화 |
 |---------|--------|------|------------|
 | `notify-on-stop.sh` | Stop | Claude 답변 완료 시 Mac 데스크탑 알림 | 수동 설치 |
+| `notify-on-permission.sh` | Notification, PreToolUse | 승인/권한 요청/질문 발생 시 Mac 알림 | 수동 설치 |
 | `precompact-save-summary.sh` | PreCompact | 컨텍스트 압축 전 세션 요약 자동 저장 | `.claude/settings.json` 등록됨 |
 
 ---

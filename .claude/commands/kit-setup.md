@@ -31,24 +31,53 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
 
 ### Mac 답변 알림
 
-**목표:** `~/.claude/settings.json`의 `hooks.Stop` 배열에 알림 훅을 추가한다.
+**목표:** `~/.claude/settings.json`에 아래 3가지 훅을 모두 등록한다.
+
+| 훅 이벤트 | matcher | 스크립트 | 동작 |
+|----------|---------|---------|------|
+| Stop | (없음) | `notify-on-stop.sh` | 답변 완료 알림 |
+| Notification | `elicitation_dialog` | `notify-on-permission.sh` | 승인 필요 알림 |
+| Notification | `permission_prompt` | `notify-on-permission.sh` | 권한 요청 알림 |
+| PreToolUse | `AskUserQuestion` | `notify-on-permission.sh` | 질문 알림 |
+
+**절차:**
 
 1. `~/.claude/settings.json` 파일 읽기 (없으면 `{}` 로 시작)
-2. `hooks.Stop` 배열에 아래 항목이 이미 있는지 확인:
-   - command에 `notify-on-stop.sh`가 포함된 항목
-3. 없으면 Stop 훅에 추가:
-   ```json
-   {
-     "type": "command",
-     "command": "bash {프로젝트_절대경로}/hooks/notify-on-stop.sh"
-   }
-   ```
-   (`{프로젝트_절대경로}`는 1단계에서 확인한 실제 경로로 대체)
-4. 파일 저장
-5. `chmod +x hooks/notify-on-stop.sh` 실행
-6. 완료 메시지 출력
+2. 각 훅에 `notify-on-stop.sh` 또는 `notify-on-permission.sh`가 이미 등록되어 있는지 확인
+3. 없는 훅만 추가 (기존 훅 배열은 덮어쓰지 말고 항목만 추가):
 
-**주의:** 기존 Stop 훅 배열이 있으면 덮어쓰지 말고 항목만 추가할 것.
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [{"type": "command", "command": "bash {경로}/hooks/notify-on-stop.sh"}]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "elicitation_dialog",
+        "hooks": [{"type": "command", "command": "bash {경로}/hooks/notify-on-permission.sh"}]
+      },
+      {
+        "matcher": "permission_prompt",
+        "hooks": [{"type": "command", "command": "bash {경로}/hooks/notify-on-permission.sh"}]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [{"type": "command", "command": "bash {경로}/hooks/notify-on-permission.sh"}]
+      }
+    ]
+  }
+}
+```
+(`{경로}`는 1단계에서 확인한 프로젝트 절대 경로로 대체)
+
+4. 파일 저장
+5. `chmod +x hooks/notify-on-stop.sh hooks/notify-on-permission.sh` 실행
+6. 완료 메시지 출력
 
 ---
 
