@@ -256,22 +256,37 @@ function buildTicketPrompt(parsed, config = {}) {
     prompt += `담당자: ${assigneeInfo}\n`;
   }
 
+  const browseUrl = `https://${config.atlassianSite || 'atlassian.net'}/browse`;
+
   prompt += `\n## 완료 후 처리 (순서대로 실행)\n`;
+  prompt += `\n⚠️ Slack 메시지의 URL은 반드시 <URL|표시텍스트> 형식으로 작성할 것. plain URL 절대 금지.\n`;
+  prompt += `⚠️ 아래 템플릿 형식을 한 글자도 바꾸지 말고 그대로 사용할 것.\n\n`;
+
+  let step = 1;
+
   if (config.slackChannel && config.slackTs) {
-    prompt += `1. Slack 스레드 댓글 달기: 채널 ${config.slackChannel}, ts ${config.slackTs} 에 스레드 댓글로 "티켓 생성 완료: {티켓번호}\\n{티켓URL}" 형식으로 달 것\n`;
-    prompt += `2. 요청자에게 DM: 티켓 번호, 제목, 우선순위, 담당자(없으면 미지정), 링크 포함\n`;
-    if (requesterSlackId && assigneeSlackId && requesterSlackId !== assigneeSlackId) {
-      prompt += `3. 담당자에게 DM: 티켓 번호, 제목, 요청자, 우선순위, 링크 포함\n`;
-    } else if (requesterSlackId === assigneeSlackId) {
-      prompt += `3. 요청자와 담당자가 동일하므로 담당자 DM 생략\n`;
-    }
-  } else {
-    prompt += `1. 요청자에게 DM: 티켓 번호, 제목, 우선순위, 담당자(없으면 미지정), 링크 포함\n`;
-    if (requesterSlackId && assigneeSlackId && requesterSlackId !== assigneeSlackId) {
-      prompt += `2. 담당자에게 DM: 티켓 번호, 제목, 요청자, 우선순위, 링크 포함\n`;
-    } else if (requesterSlackId === assigneeSlackId) {
-      prompt += `2. 요청자와 담당자가 동일하므로 담당자 DM 생략\n`;
-    }
+    prompt += `${step++}. 스레드 댓글 (채널 ${config.slackChannel}, ts ${config.slackTs}):\n`;
+    prompt += `티켓 생성 완료: <${browseUrl}/{티켓키}|{티켓키}>\n\n`;
+  }
+
+  prompt += `${step++}. 요청자 DM — 아래 형식 그대로:\n`;
+  prompt += `:clipboard: Jira 티켓 생성 완료\n\n`;
+  prompt += `• 티켓: <${browseUrl}/{티켓키}|{티켓키}>\n`;
+  prompt += `• 제목: {제목}\n`;
+  prompt += `• 우선순위: {우선순위}\n`;
+  prompt += `• 담당자: {담당자이름 또는 미지정}\n`;
+  prompt += `• 상태: Backlog\n\n`;
+
+  if (requesterSlackId && assigneeSlackId && requesterSlackId !== assigneeSlackId) {
+    prompt += `${step++}. 담당자 DM — 아래 형식 그대로:\n`;
+    prompt += `:clipboard: Jira 티켓 배정 알림\n\n`;
+    prompt += `• 티켓: <${browseUrl}/{티켓키}|{티켓키}>\n`;
+    prompt += `• 제목: {제목}\n`;
+    prompt += `• 요청자: {요청자이름}\n`;
+    prompt += `• 우선순위: {우선순위}\n`;
+    prompt += `• 상태: Backlog\n\n`;
+  } else if (requesterSlackId && requesterSlackId === assigneeSlackId) {
+    prompt += `${step++}. 요청자와 담당자가 동일하므로 담당자 DM 생략\n`;
   }
 
   return prompt;
