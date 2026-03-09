@@ -90,7 +90,7 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
 
 ### Claude 사용량 모니터
 
-**목표:** SwiftBar 플러그인 심볼릭 링크를 생성한다.
+**목표:** SwiftBar 플러그인 심볼릭 링크를 생성하고 플랜에 맞는 초기 한도를 설정한다.
 
 1. `~/SwiftBar` 폴더 존재 여부 확인 (`ls ~/SwiftBar 2>/dev/null`)
 2. 폴더가 없으면:
@@ -103,12 +103,38 @@ AskUserQuestion을 사용하여 설정할 기능을 선택받는다 (multiSelect
    - AskUserQuestion: "SwiftBar 설치 완료 후 계속할까요?"
      - 계속: 다음으로 진행
      - 취소: 이 기능 건너뜀
-3. `~/SwiftBar/claude-usage.30s.sh` 이미 존재하면 "이미 설치됨" 출력 후 건너뜀
-4. 심볼릭 링크 생성:
+3. `~/SwiftBar/claude-usage.30s.sh` 존재 여부에 따라 분기:
+   - **링크 없음**: 심볼릭 링크 생성:
+     ```bash
+     ln -s "{프로젝트_절대경로}/swiftbar/claude-usage.30s.sh" ~/SwiftBar/claude-usage.30s.sh
+     ```
+   - **링크 있고 config도 있음** (`swiftbar/claude-usage.config.sh` 존재): "이미 설치됨" 출력 후 건너뜀
+   - **링크 있지만 config 없음**: 링크 생성 건너뛰고 아래 플랜 설정으로 진행
+4. AskUserQuestion으로 플랜 선택:
+   질문: "현재 사용 중인 Claude 플랜을 선택하세요"
+   선택지:
+   - `Claude Pro` → LIMIT_OUTPUT_TOKENS=800000
+   - `Claude Max 5x` → LIMIT_OUTPUT_TOKENS=4000000
+   - `Claude Max 20x` → LIMIT_OUTPUT_TOKENS=16000000
+   - `모름 / 나중에 캘리브레이션으로 설정` → LIMIT_OUTPUT_TOKENS=800000
+5. `swiftbar/claude-usage.config.sh` 파일 생성:
    ```bash
-   ln -s "{프로젝트_절대경로}/swiftbar/claude-usage.30s.sh" ~/SwiftBar/claude-usage.30s.sh
+   cat > "{프로젝트_절대경로}/swiftbar/claude-usage.config.sh" << EOF
+   # Claude Usage 개인 설정 파일 (git 미추적 — 각 사용자 독립 관리)
+   # 캘리브레이션: SwiftBar 메뉴 > "📐 /usage % 입력해서 보정"
+   # ────────────────────────────────────────────
+   # 현재 플랜: {선택한 플랜}
+   # 캘리브레이션 이력:
+   # ※ 가중 평균 기준: % >= 8, 한도 >= 500000, IQR 이상치 제외
+   LIMIT_OUTPUT_TOKENS={선택한 값}
+   EOF
    ```
-5. 완료 메시지 출력
+6. 완료 메시지 출력:
+   ```
+   ✅ Claude 사용량 모니터 설정 완료
+   플랜: {선택한 플랜} (초기 한도: {값/1000}k tokens)
+   실제 사용 후 SwiftBar 메뉴 > "📐 /usage % 입력해서 보정" 으로 정확도를 높이세요.
+   ```
 
 ---
 

@@ -8,21 +8,13 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 WINDOW_HOURS=5
 
 # ────────────────────────────────────────────
-# 기본 지표: 출력 토큰 (output_tokens) — 컨텍스트 압축 포함, /usage 와 가장 잘 일치
-# 캘리브레이션 이력 (% 가중 평균, 이상치 자동 제외):
-#   [구버전: 메시지 수 기반 — 폐기 (컨텍스트 압축 시 /usage 와 괴리 발생)]
-#   1차: /usage 23% = 187000tok → 한도 813000tok
-#   2차: /usage 33% = 265254tok → 한도 803800tok
-#   3차: /usage 38% = 324989tok → 한도 855234tok
-#   4차: /usage 42% = 364856tok → 한도 868705tok
-#   5차: /usage 42% = 370061tok → 한도 881098tok
-#   6차: /usage 44% = 391104tok → 한도 888873tok
-#   7차: /usage 24% = 197795tok → 한도 824146tok
-#   8차: /usage 9% = 45668tok → 한도 507422tok
-# ※ 가중 평균 기준: % >= 8, 한도 >= 500000, IQR 이상치 제외
-# 보조 지표: 비용 (참고용)
-LIMIT_OUTPUT_TOKENS=854085
-LIMIT_COST_USD=44.6   # 참고용
+# 개인 설정 로드 (캘리브레이션 값, 이력)
+# config 파일 없으면 기본값 사용 (처음 clone 시)
+REAL_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || readlink "$0" 2>/dev/null || echo "$0")")" && pwd)"
+CONFIG_FILE="$REAL_SCRIPT_DIR/claude-usage.config.sh"
+LIMIT_OUTPUT_TOKENS=800000  # 기본값 (캘리브레이션 전)
+LIMIT_COST_USD=44.6         # 참고용
+[ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 # ────────────────────────────────────────────
 
 USAGE=$(python3 << PYEOF
@@ -67,25 +59,32 @@ for jsonl in glob.glob(f"{claude_dir}/**/*.jsonl", recursive=True):
     except Exception:
         pass
 
-# 2단계: 세션 시작 감지 (정각 기반 — Anthropic 세션은 정각에 시작)
-# gap detection 대신 "아직 만료되지 않은 세션의 가장 오래된 정각" 을 사용
-# → 세션 중 휴식(90분+) 이 있어도 세션이 초기화되지 않음
+# 2단계: 세션 시작 감지 (gap-based — 실제 첫 메시지 timestamp 사용)
+# 역방향으로 탐색하여 90분 이상 gap 직후 메시지 = 현재 세션 시작
+# → 정각 반올림 없이 Anthropic 리셋 시간과 정확히 일치
+SESSION_GAP = 90 * 60
 all_msgs.sort(key=lambda x: x[0])
 
-# 90분 이상 비활성이면 현재 세션 없음 (표시 목적)
-SESSION_INACTIVITY = 90 * 60
-if all_msgs and (now - all_msgs[-1][0]) >= SESSION_INACTIVITY:
-    all_msgs = []
+session_start = None
+if all_msgs:
+    # 90분 이상 비활성이면 현재 세션 없음
+    if now - all_msgs[-1][0] >= SESSION_GAP:
+        all_msgs = []
+    else:
+        # 역방향으로 현재 연속 세션의 첫 번째 메시지 탐색
+        session_start = all_msgs[0][0]
+        for i in range(len(all_msgs) - 1, 0, -1):
+            if all_msgs[i][0] - all_msgs[i - 1][0] > SESSION_GAP:
+                session_start = all_msgs[i][0]
+                break
+        # Anthropic은 정각 기준 5시간 rolling — 정각으로 내림
+        session_hour = (session_start // 3600) * 3600
+        # 세션이 이미 5시간 초과 만료된 경우
+        if session_hour + window_hours * 3600 <= now:
+            session_start = None
+            all_msgs = []
 
-# 현재도 유효한(만료 안 된) 세션의 가장 오래된 정각을 세션 시작으로 선택
-session_hour_start = (now // 3600) * 3600  # 기본값: 현재 정각
-for epoch, _ in all_msgs:
-    candidate = (epoch // 3600) * 3600
-    if candidate + window_hours * 3600 > now:  # 아직 5시간 내
-        session_hour_start = candidate
-        break
-
-current_msgs = [(e, u) for e, u in all_msgs if e >= session_hour_start]
+current_msgs = [(e, u) for e, u in all_msgs if session_start and e >= session_hour]
 
 # 3단계: 집계
 total_in = total_out = total_cache_c = total_cache_r = 0
@@ -99,7 +98,13 @@ for epoch, u in current_msgs:
     msg_count     += 1
 
 # --- 사용률 % (출력 토큰 기반, 기본 지표) ---
-pct_tok = min(999, int(total_out * 100 / limit_output_tokens)) if limit_output_tokens > 0 else 0
+pct_float = min(999.0, total_out * 100 / limit_output_tokens) if limit_output_tokens > 0 else 0.0
+pct_int   = int(pct_float)                          # 게이지·색상 계산용 정수
+# 소수점 표시: 1% 미만이고 사용량이 있으면 소수점 1자리
+if pct_float > 0 and pct_int == 0:
+    pct_disp = f"{pct_float:.1f}"
+else:
+    pct_disp = str(pct_int)
 
 # --- 비용 (참고용) ---
 cost_out     = total_out     * 15.00 / 1_000_000
@@ -111,13 +116,13 @@ pct_cost     = min(999, int(total_cost * 100 / limit_cost)) if limit_cost > 0 el
 
 # --- 세션 윈도우 ---
 if msg_count > 0:
-    # session_hour_start 는 2단계에서 이미 계산됨 (정각 기준)
-    window_end    = session_hour_start + window_hours * 3600
+    # Anthropic은 정각 기준 5시간 → window_end는 session_hour 기반
+    window_end    = session_hour + window_hours * 3600
     remaining_sec = max(0, int(window_end - now))
     remain_h = remaining_sec // 3600
     remain_m = (remaining_sec % 3600) // 60
     reset_local     = datetime.fromtimestamp(window_end).strftime("%H:%M")
-    win_start_local = datetime.fromtimestamp(session_hour_start).strftime("%H:%M")
+    win_start_local = datetime.fromtimestamp(session_hour).strftime("%H:%M")
 else:
     remain_h, remain_m = window_hours, 0
     reset_local = win_start_local = "N/A"
@@ -127,11 +132,11 @@ def fmt(n):
     if n >= 1_000:     return f"{n/1_000:.0f}k"
     return str(n)
 
-pct    = pct_tok
-filled = min(10, pct // 10)
+filled = min(10, pct_int // 10)
 bar    = "█" * filled + "░" * (10 - filled)
 
-print(f"PCT={pct}")
+print(f"PCT={pct_disp}")
+print(f"PCT_INT={pct_int}")
 print(f"BAR={bar}")
 print(f"MSG={msg_count}")
 print(f"OUT_RAW={total_out}")
@@ -150,6 +155,7 @@ PYEOF
 get_val() { echo "$USAGE" | grep "^$1=" | cut -d= -f2-; }
 
 PCT=$(get_val PCT)
+PCT_INT=$(get_val PCT_INT)
 BAR=$(get_val BAR)
 MSG=$(get_val MSG)
 OUT_RAW=$(get_val OUT_RAW)
@@ -168,17 +174,17 @@ WIN_START=$(get_val WIN_START)
 if [ -z "$PCT" ] || [ "$MSG" = "0" ]; then
   echo "◯ Claude"
 else
-  if   [ "$PCT" -le 20 ]; then GAUGE="▁"
-  elif [ "$PCT" -le 40 ]; then GAUGE="▃"
-  elif [ "$PCT" -le 60 ]; then GAUGE="▅"
-  elif [ "$PCT" -le 80 ]; then GAUGE="▇"
-  else                         GAUGE="█"
+  if   [ "$PCT_INT" -le 20 ]; then GAUGE="▁"
+  elif [ "$PCT_INT" -le 40 ]; then GAUGE="▃"
+  elif [ "$PCT_INT" -le 60 ]; then GAUGE="▅"
+  elif [ "$PCT_INT" -le 80 ]; then GAUGE="▇"
+  else                              GAUGE="█"
   fi
 
-  if   [ "$PCT" -le 30 ]; then COLOR="#34C759"
-  elif [ "$PCT" -le 60 ]; then COLOR="#FF9F0A"
-  elif [ "$PCT" -le 85 ]; then COLOR="#FF6B35"
-  else                         COLOR="#FF3B30"
+  if   [ "$PCT_INT" -le 30 ]; then COLOR="#34C759"
+  elif [ "$PCT_INT" -le 60 ]; then COLOR="#FF9F0A"
+  elif [ "$PCT_INT" -le 85 ]; then COLOR="#FF6B35"
+  else                              COLOR="#FF3B30"
   fi
 
   echo "Claude ${GAUGE} ${PCT}% | color=${COLOR}"

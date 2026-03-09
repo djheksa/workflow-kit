@@ -4,7 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PLUGIN_FILE="$PROJECT_DIR/swiftbar/claude-usage.30s.sh"
+PLUGIN_FILE="$PROJECT_DIR/swiftbar/claude-usage.config.sh"
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
@@ -111,6 +111,7 @@ next_num = len(existing) + 1
 all_points = existing + [(next_num, int(actual_pct), current_out, new_limit)]
 
 # 유효 포인트 필터: % >= 8, 한도 >= 500000 (너무 낮은 이상치 제거)
+# 9~11차(세션 과대 집계로 부정확)는 IQR에서 자동 제외됨
 valid = [(n, p, m, l) for n, p, m, l in all_points if p >= 8 and l >= 500000]
 
 # IQR 기반 이상치 제거 (데이터 4개 이상일 때만)
@@ -148,12 +149,15 @@ AVG_LIMIT=$(get_r AVG_LIMIT)
 NEXT_NUM=$(get_r NEXT_NUM)
 VALID_COUNT=$(get_r VALID_COUNT)
 
-# 4. 플러그인 파일 업데이트
+# 4. config 파일 업데이트 (없으면 새로 생성)
 python3 << PYEOF
 import re
 
-with open("$PLUGIN_FILE") as f:
-    content = f.read()
+try:
+    with open("$PLUGIN_FILE") as f:
+        content = f.read()
+except FileNotFoundError:
+    content = "# Claude Usage 개인 설정 파일 (git 미추적)\nLIMIT_OUTPUT_TOKENS=800000\n"
 
 # 이력 마지막 줄 뒤에 새 항목 추가
 all_hist = re.findall(r'#\s+\d+차:.*tok.*', content)
@@ -161,9 +165,6 @@ if all_hist:
     last = sorted(all_hist, key=lambda x: int(re.search(r'\d+', x).group()))[-1]
     new_line = "#   ${NEXT_NUM}차: /usage ${ACTUAL_PCT}% = ${CURRENT_OUT_RAW}tok → 한도 ${NEW_LIMIT}tok"
     content = content.replace(last, last + "\n" + new_line)
-
-# 한도 표시 줄 업데이트
-content = re.sub(r'한도: \d+k tok \(\d+pt 캘리브레이션\)', f'한도: {round(int("${AVG_LIMIT}") / 1000)}k tok (${NEXT_NUM}pt 캘리브레이션)', content)
 
 # LIMIT_OUTPUT_TOKENS 값 업데이트
 content = re.sub(r'LIMIT_OUTPUT_TOKENS=\d+', f'LIMIT_OUTPUT_TOKENS=${AVG_LIMIT}', content)
