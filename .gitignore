@@ -3,7 +3,6 @@
 
 # 사용자별 로컬 설정
 .claude.local.md
-swiftbar/claude-usage.config.sh
 
 # Claude Code 로컬 설정 (권한, outputStyle 등)
 .claude/settings.local.json
