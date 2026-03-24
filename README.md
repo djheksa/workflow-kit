@@ -56,9 +56,8 @@ macOS 메뉴바에서 각 서비스의 상태 확인 및 제어가 가능합니�
 - **Infra Snapshot**: 수집 상태, 스냅샷 나이, 수동 수집 트리거, 서비스 제어
 - **Claude Usage**: Claude Code 5시간 세션 사용량 실시간 모니터링
   - 메뉴바에 게이지(`▁▃▅▇█`) + 사용률(%) 표시, 사용량에 따라 색상 변화
-  - 드롭다운: 메시지 수 / 세션 시간 / 리셋까지 남은 시간 / 토큰 breakdown
-  - 경험적 캘리브레이션 지원: 실제 `/usage` 값으로 한도 역산 자동 적용
-  - 세션 경계 자동 감지 (90분 이상 비활성 = 새 세션)
+  - Anthropic API ratelimit 헤더 기반 (정확, 캘리브레이션 불필요)
+  - 드롭다운: 세션 시작/종료 시간 / 리셋까지 남은 시간 / 주간 사용률
 
 ---
 
@@ -134,9 +133,7 @@ workflow-kit/
 └── swiftbar/                    # macOS 메뉴바 플러그인
     ├── workflow-bot.5s.sh       # 봇 상태 관리
     ├── infra-snapshot.5s.sh     # 스냅샷 서비스 상태 관리
-    ├── claude-usage.30s.sh      # Claude Code 세션 usage 모니터링
-    └── scripts/
-        └── calibrate-claude-usage.sh  # usage 캘리브레이션 (한도 역산)
+    └── claude-usage.30s.sh      # Claude Code 세션 usage 모니터링
 ```
 
 ## 연동 대상

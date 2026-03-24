@@ -4,21 +4,21 @@ macOS 메뉴바(SwiftBar)에서 Claude Code 5시간 세션 사용률을 실시�
 
 ## 동작
 
-- 30초마다 `~/.claude/projects/` 디렉토리의 JSONL 파일을 읽어 출력 토큰 집계
-- 사용률에 따라 색상 변경: 초록(0~30%) → 주황(30~60%) → 빨강(60~+%)
-- 드롭다운: 세션 시작/종료 시간, 남은 시간, 토큰 breakdown
-- `/usage` 결과로 한도 보정(캘리브레이션) 기능 내장
+- Anthropic API(`POST /v1/messages`)를 호출하여 `anthropic-ratelimit-unified-5h-utilization` 헤더로 사용률 조회
+- 사용률에 따라 색상 변경: 초록(0~30%) → 주황(30~60%) → 빨강(85~+%)
+- 드롭다운: 세션 시작/종료 시간, 남은 시간, 주간 사용률
+- 5분 캐시 (`/tmp/claude-usage-api-cache.txt`), 메뉴 > 새로고침으로 강제 갱신
 
 ## 요구사항
 
 - macOS
 - [SwiftBar](https://github.com/swiftbar/SwiftBar) 설치: `brew install --cask swiftbar`
+- Claude Code 설치 (OAuth 토큰 자동 관리)
 - Python 3
 
 ## 파일
 
 - `swiftbar/claude-usage.30s.sh` — 메뉴바 플러그인
-- `swiftbar/scripts/calibrate-claude-usage.sh` — 한도 보정 스크립트
 
 ## 설치
 
@@ -35,14 +35,10 @@ ln -s "$(pwd)/swiftbar/claude-usage.30s.sh" ~/SwiftBar/claude-usage.30s.sh
 # 4. SwiftBar에서 플러그인 새로고침
 ```
 
-## 캘리브레이션
-
-실제 `/usage` 값과 표시값이 다를 경우 메뉴에서 "보정" 클릭:
-1. `/usage` 명령으로 현재 세션 사용률 확인
-2. SwiftBar 메뉴 > "📐 /usage % 입력해서 보정" 클릭
-3. 퍼센트 숫자 입력 → 자동으로 한도 역산 및 가중 평균 적용
+캘리브레이션 불필요. Claude Code OAuth 토큰을 자동으로 읽어 Anthropic 서버에서 직접 사용률을 조회하므로 항상 정확하다.
 
 ## 지표 설명
 
-- **출력 토큰 기반**: 컨텍스트 압축(context compression)을 반영하여 `/usage`와 가장 일치
-- **세션 경계**: 정각(hour) 기준으로 감지. 90분 이상 비활성 시 세션 없음으로 표시
+- **5h-utilization**: 현재 5시간 세션 사용률 (Anthropic 서버 기준)
+- **7d-utilization**: 주간 사용률
+- **세션 시간**: `5h-reset` 헤더 기준으로 세션 시작/종료 시간 계산
