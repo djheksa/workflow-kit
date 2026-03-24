@@ -52,7 +52,7 @@ function stripSlackFormatting(text) {
  * Slack Form 메시지인지 판별
  */
 function isFormMessage(text) {
-  return text && text.includes('요청사항') && text.includes('━━');
+  return !!(text && text.includes('요청사항') && text.includes('━━'));
 }
 
 /**
@@ -296,7 +296,25 @@ function buildTicketPrompt(parsed, config = {}) {
  * 분석 워크플로우 프롬프트 생성
  */
 function buildAnalysisPrompt(ticketKey, triggeredBy) {
-  return `[headless 모드 - 봇 자동 실행]\n세션 초기화, 기능 소개, 환경 체크 없이 바로 워크플로우를 실행할 것.\n\n분석해줘\n\n티켓: ${ticketKey}\n분석 범위: 전체\n트리거한 사람: ${triggeredBy}\n`;
+  return `[headless 모드 - 봇 자동 실행]
+세션 초기화, 기능 소개, 환경 체크 없이 바로 워크플로우를 실행할 것.
+
+분석해줘
+
+티켓: ${ticketKey}
+분석 범위: 전체
+트리거한 사람: ${triggeredBy}
+
+## 분석 탐색 전략 (필수 준수)
+
+토큰과 시간을 절약하기 위해 아래 규칙을 반드시 따를 것:
+
+1. **전체 코드 스캔 금지** — 티켓의 "관련 화면" 키워드로 CLAUDE.md의 화면↔도메인 매핑을 참조하여 관련 도메인만 탐색
+2. **탐색 순서**: Jira 티켓 조회 → 관련 화면 키워드 추출 → CLAUDE.md 매핑표로 대상 도메인 특정 → 해당 도메인의 controller/service/repo만 분석
+3. **파일 읽기 최소화**: controller에서 엔드포인트 시그니처 확인 → service에서 비즈니스 로직 확인 → 필요 시에만 repo/entity 확인
+4. **Glob/Grep 활용**: 파일을 하나씩 열지 말고, 키워드 검색으로 관련 파일을 먼저 특정
+5. **턴 예산 엄수**: 탐색 최대 10턴 → Confluence 문서 생성 → Jira 업데이트 → DM 발송 순으로 진행. 탐색이 끝나지 않아도 10턴이 지나면 지금까지 파악한 내용으로 문서를 작성할 것
+`;
 }
 
 module.exports = {

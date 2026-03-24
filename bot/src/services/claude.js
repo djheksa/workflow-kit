@@ -1,9 +1,18 @@
-const { spawn, exec } = require('child_process');
+const { spawn, exec, execSync } = require('child_process');
 const fs = require('fs');
 const { notify } = require('./notify');
 const config = require('../config');
 
 const STATUS_FILE = '/tmp/workflow-bot-status.json';
+
+// claude 절대 경로 캐시 (spawn 시 PATH 해석 불안정 방지)
+let claudePath;
+try {
+  claudePath = execSync('which claude', { encoding: 'utf8' }).trim();
+} catch (_) {
+  claudePath = `${process.env.HOME}/.local/bin/claude`;
+}
+console.log(`[claude] 실행 경로: ${claudePath}`);
 
 function refreshSwiftBar() {
   exec('open -g "swiftbar://refreshplugin?name=workflow-bot"', () => {});
@@ -89,12 +98,17 @@ function _execute(prompt, options) {
   ];
 
   return new Promise((resolve, reject) => {
+    // claude 바이너리 존재 확인
+    if (!fs.existsSync(claudePath)) {
+      return reject(new Error(`claude 바이너리를 찾을 수 없습니다: ${claudePath}`));
+    }
+
     // Claude Code 관련 환경변수 제거 (중첩 세션 차단 방지)
     const env = { ...process.env };
     delete env.CLAUDECODE;
     delete env.CLAUDE_CODE_ENTRYPOINT;
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(claudePath, args, {
       cwd: workDir,
       env,
       stdio: ['ignore', 'pipe', 'pipe'], // stdin 닫기 (열려있으면 hang)
@@ -167,7 +181,7 @@ function _execute(prompt, options) {
       clearTimeout(timeout);
       if (!resolved) {
         resolved = true;
-        reject(new Error(`Failed to spawn claude: ${err.message}`));
+        reject(new Error(`Failed to spawn claude (path=${claudePath}): ${err.message}`));
       }
     });
   });
@@ -194,7 +208,7 @@ function runAnalysis(prompt) {
   return runClaude(prompt, {
     allowedTools: 'Read,Glob,Grep,Bash,mcp__atlassian__*,mcp__slack__*,mcp__claude_ai_Atlassian__*',
     maxTurns: config.claude.maxTurnsAnalysis,
-    timeoutMs: 10 * 60 * 1000, // 분석은 10분
+    timeoutMs: 20 * 60 * 1000, // 분석은 20분
   }).finally(() => clearStatus());
 }
 

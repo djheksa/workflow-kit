@@ -205,8 +205,8 @@ echo ""
 update_status "running" "rds"
 echo "## RDS 인스턴스"
 echo ""
-echo "| 인스턴스 | 엔진 | 클래스 | 스토리지 | 엔드포인트 | 상태 |"
-echo "|---------|------|--------|---------|-----------|------|"
+echo "| 인스턴스 | 엔진 | 클래스 | 스토리지 | Multi-AZ | 백업 보존 | 백업 시간 | 엔드포인트 | 상태 |"
+echo "|---------|------|--------|---------|---------|---------|---------|-----------|------|"
 
 aws rds describe-db-instances --region $REGION --output json 2>/dev/null | \
   python3 -c "
@@ -217,11 +217,14 @@ for db in data['DBInstances']:
     engine=db['Engine']+' '+db.get('EngineVersion','')
     cls=db['DBInstanceClass']
     storage=str(db.get('AllocatedStorage',''))+'GB'
+    multi_az='O' if db.get('MultiAZ') else 'X'
+    backup_days=str(db.get('BackupRetentionPeriod',0))+'일'
+    backup_window=db.get('PreferredBackupWindow','-')
     endpoint=db.get('Endpoint',{}).get('Address','')
     port=str(db.get('Endpoint',{}).get('Port',''))
     status=db['DBInstanceStatus']
     ep_short=endpoint.split('.')[0] if endpoint else '-'
-    print(f'| {name} | {engine} | {cls} | {storage} | {ep_short}:{port} | {status} |')
+    print(f'| {name} | {engine} | {cls} | {storage} | {multi_az} | {backup_days} | {backup_window} | {ep_short}:{port} | {status} |')
 " 2>/dev/null
 echo ""
 
@@ -348,6 +351,154 @@ for s in data.get('SecretList',[]):
     desc=s.get('Description','')[:50]
     print(f'| {name} | {desc} |')
 " 2>/dev/null
+echo ""
+
+# 13. EC2 인스턴스
+update_status "running" "ec2"
+echo "## EC2 인스턴스"
+echo ""
+echo "| 이름 | 인스턴스 ID | 타입 | 상태 | 구매 방식 |"
+echo "|------|-----------|------|------|---------|"
+
+aws ec2 describe-instances --region $REGION \
+  --filters "Name=instance-state-name,Values=running,stopped" \
+  --output json 2>/dev/null | \
+  python3 -c "
+import sys,json
+data=json.load(sys.stdin)
+for r in data['Reservations']:
+  for i in r['Instances']:
+    name=next((t['Value'] for t in i.get('Tags',[]) if t['Key']=='Name'),'N/A')
+    iid=i['InstanceId']
+    itype=i['InstanceType']
+    state=i['State']['Name']
+    lifecycle=i.get('InstanceLifecycle') or 'on-demand'
+    print(f'| {name} | {iid} | {itype} | {state} | {lifecycle} |')
+" 2>/dev/null
+echo ""
+
+# 14. VPC 구성
+update_status "running" "vpc"
+echo "## VPC 구성"
+echo ""
+echo "| VPC 이름 | CIDR | 기본 VPC | 서브넷 수 |"
+echo "|---------|------|---------|---------|"
+
+aws ec2 describe-vpcs --region $REGION --output json 2>/dev/null | \
+  python3 -c "
+import sys,json
+data=json.load(sys.stdin)
+for v in data['Vpcs']:
+    name=next((t['Value'] for t in v.get('Tags',[]) if t['Key']=='Name'),'N/A')
+    cidr=v['CidrBlock']
+    default='O' if v['IsDefault'] else 'X'
+    print(f'| {name} | {cidr} | {default} | - |')
+" 2>/dev/null
+echo ""
+
+echo "### 서브넷"
+echo ""
+echo "| 이름 | CIDR | 타입 | AZ |"
+echo "|------|------|------|-----|"
+
+aws ec2 describe-subnets --region $REGION --output json 2>/dev/null | \
+  python3 -c "
+import sys,json
+data=json.load(sys.stdin)
+for s in sorted(data['Subnets'], key=lambda x: next((t['Value'] for t in x.get('Tags',[]) if t['Key']=='Name'),'zzz')):
+    name=next((t['Value'] for t in s.get('Tags',[]) if t['Key']=='Name'),'N/A')
+    cidr=s['CidrBlock']
+    stype='public' if s['MapPublicIpOnLaunch'] else 'private'
+    az=s['AvailabilityZone']
+    print(f'| {name} | {cidr} | {stype} | {az} |')
+" 2>/dev/null
+echo ""
+
+# 15. IAM 현황
+update_status "running" "iam"
+echo "## IAM 현황"
+echo ""
+
+aws iam get-account-summary --output json 2>/dev/null | python3 -c "
+import json,sys
+s=json.load(sys.stdin)['SummaryMap']
+print(f\"- 사용자: {s.get('Users',0)}명\")
+print(f\"- MFA 등록: {s.get('MFADevicesInUse',0)}/{s.get('Users',0)}명\")
+print(f\"- 루트 MFA: {'활성화' if s.get('AccountMFAEnabled') else '비활성화'}\")
+print(f\"- 역할(Role): {s.get('Roles',0)}개\")
+print(f\"- 정책: {s.get('Policies',0)}개\")
+" 2>/dev/null
+echo ""
+
+echo "| 사용자 | 마지막 로그인 |"
+echo "|--------|------------|"
+aws iam list-users --output json 2>/dev/null | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+for u in data['Users']:
+    last=u.get('PasswordLastUsed','미사용')
+    if last != '미사용': last=last[:10]
+    print(f'| {u[\"UserName\"]} | {last} |')
+" 2>/dev/null
+echo ""
+
+# 16. CloudWatch Logs 보존 정책
+update_status "running" "logs"
+echo "## CloudWatch Logs"
+echo ""
+echo "| 로그 그룹 | 보존 기간 | 용량 |"
+echo "|---------|---------|------|"
+
+aws logs describe-log-groups --region $REGION --output json 2>/dev/null | \
+  python3 -c "
+import sys,json
+data=json.load(sys.stdin)
+for g in data['logGroups']:
+    name=g['logGroupName']
+    retention=str(g['retentionInDays'])+'일' if 'retentionInDays' in g else '무기한'
+    size_mb=round(g.get('storedBytes',0)/1024/1024,1)
+    print(f'| {name} | {retention} | {size_mb}MB |')
+" 2>/dev/null
+echo ""
+
+# 17. CloudTrail
+update_status "running" "cloudtrail"
+echo "## CloudTrail"
+echo ""
+trails=$(aws cloudtrail describe-trails --output json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('trailList',[])))" 2>/dev/null || echo "0")
+if [ "${trails:-0}" -eq 0 ] 2>/dev/null; then
+  echo "미설정"
+else
+  echo "| 이름 | S3 버킷 | 멀티리전 |"
+  echo "|------|--------|---------|"
+  aws cloudtrail describe-trails --output json 2>/dev/null | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+for t in data['trailList']:
+    name=t['Name']
+    bucket=t.get('S3BucketName','-')
+    multi='O' if t.get('IsMultiRegionTrail') else 'X'
+    print(f'| {name} | {bucket} | {multi} |')
+" 2>/dev/null
+fi
+echo ""
+
+# 18. S3 Lifecycle 현황
+update_status "running" "s3lifecycle"
+echo "## S3 Lifecycle 현황"
+echo ""
+echo "| 버킷 | Lifecycle |"
+echo "|------|----------|"
+
+for bucket in $(aws s3api list-buckets --output text --query 'Buckets[].Name' 2>/dev/null); do
+  result=$(aws s3api get-bucket-lifecycle-configuration --bucket "$bucket" --output json 2>&1 || true)
+  if echo "$result" | grep -q "NoSuchLifecycleConfiguration" 2>/dev/null || [ -z "$result" ]; then
+    echo "| $bucket | 없음 |"
+  else
+    rules=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('Rules',[])))" 2>/dev/null || echo "?")
+    echo "| $bucket | ${rules}개 규칙 |"
+  fi
+done || true
 echo ""
 
 } > "$OUTPUT_FILE" 2>/dev/null

@@ -27,6 +27,12 @@ for (const file of handlerFiles) {
 (async () => {
   await app.start();
 
+  // 시작 시 미처리 메시지 스캔 (백그라운드 실행, 봇 기동 지연 없음)
+  const { scanUnprocessed } = require('./services/startup');
+  scanUnprocessed(app.client, config).catch((err) => {
+    console.error(`[startup] 스캔 중 예외: ${err.message}`);
+  });
+
   // Socket Mode 연결 모니터링
   const socketClient = app.receiver?.client;
   if (socketClient) {

@@ -4,7 +4,7 @@
 # SwiftBar 등 GUI 환경에서 nvm PATH 누락 보완
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh" --no-use
-export PATH="/usr/local/bin:/opt/homebrew/bin:$NVM_DIR/versions/node/$(ls "$NVM_DIR/versions/node" 2>/dev/null | sort -V | tail -1)/bin:$PATH"
+export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$NVM_DIR/versions/node/$(ls "$NVM_DIR/versions/node" 2>/dev/null | sort -V | tail -1)/bin:$PATH"
 
 BOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PID_FILE="/tmp/workflow-bot.pid"
